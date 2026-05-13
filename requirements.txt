@@ -1,0 +1,5 @@
+Flask
+pymysql
+python-dotenv
+gunicorn
+dbutils
