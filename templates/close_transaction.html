@@ -1,0 +1,163 @@
+<!-- close_transaction.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Close Transaction — Test Traceability</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/close_transaction.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
+</head>
+<body>
+<div class="page-wrap">
+    <header class="page-header">
+        <div class="header-left">
+            <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
+                <rect width="36" height="36" rx="10" fill="#3B6D11"/>
+                <path d="M10 12h16M10 18h10M10 24h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="27" cy="24" r="4" fill="white" fill-opacity=".9"/>
+                <path d="M25.5 24l1 1 2-2" stroke="#3B6D11" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="header-title">CLOSE TRANSACTION</span>
+        </div>
+        <a href="{{ url_for('index') }}" class="btn-back" id="back-btn">← Back to Home</a>
+    </header>
+
+    <main class="main-content">
+        <div class="table-toolbar">
+            <p class="table-subtitle">Select a transaction below to review and close it.</p>
+            <div class="search-wrap">
+                <input type="text" id="search-input" placeholder="Search by tester code, name, classification…" autocomplete="off">
+            </div>
+        </div>
+
+        {% if transactions %}
+        <div class="table-wrap">
+            <table id="transactions-table">
+                <thead>
+                    <tr>
+                        <th>id</th>
+                        <th>tester_code</th>
+                        <th>tester_name</th>
+                        <th>classification</th>
+                        <th>due_date</th>
+                        <th>datetime_start</th>
+                        <th>datetime_done</th>
+                        <th>pic</th>
+                        <th>issues</th>
+                        <th>action_taken</th>
+                        <th>remarks</th>
+                        <th>action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for txn in transactions %}
+                    <tr class="txn-row"
+                        data-id="{{ txn.id }}"
+                        data-tester-code="{{ txn.tester_code }}"
+                        data-tester-name="{{ txn.tester_name }}"
+                        data-classification="{{ txn.classification }}"
+                        data-due-date="{{ txn.due_date or '' }}"
+                        data-datetime-start="{{ txn.datetime_start or '' }}"
+                        data-datetime-done="{{ txn.datetime_done or '' }}"
+                        data-pic="{{ txn.pic }}"
+                        data-issues="{{ 'Yes' if txn.issues else 'No' }}"
+                        data-action-taken="{{ txn.action_taken or '' }}"
+                        data-remarks="{{ txn.remarks }}">
+
+                        <td>{{ txn.id }}</td>
+                        <td><code>{{ txn.tester_code }}</code></td>
+                        <td>{{ txn.tester_name }}</td>
+                        <td><span class="badge badge-class">{{ txn.classification }}</span></td>
+                        <td>{{ txn.due_date or '—' }}</td>
+                        <td>{{ txn.datetime_start or '—' }}</td>
+                        <td>{{ txn.datetime_done or '—' }}</td>
+                        <td>{{ txn.pic }}</td>
+                        <td>
+                            {% if txn.issues %}
+                            <span class="badge badge-issue">⚠ Yes</span>
+                            {% else %}
+                            <span class="badge badge-ok">✔ No</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ txn.action_taken or '—' }}</td>
+                        <td><span class="badge badge-open">{{ txn.remarks }}</span></td>
+                        <td>
+                            <button class="btn-close-txn" type="button"
+                                    data-id="{{ txn.id }}">Close</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="32" fill="#f0fdf4"/><path d="M22 32h20M22 24h20M22 40h14" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round"/></svg>
+            <p>No open transactions found.</p>
+            <a href="{{ url_for('new_transaction') }}" class="btn-new">Create a New Transaction</a>
+        </div>
+        {% endif %}
+    </main>
+</div>
+
+<!-- ─── Summary / Confirm Modal ─── -->
+<div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal">
+        <h2 id="modal-title">Transaction Summary</h2>
+        <p class="modal-subtitle">Please review the details before closing this transaction.</p>
+
+        <div class="summary-grid">
+            <div class="summary-item">
+                <span class="summary-label">ID</span>
+                <span id="sum-id" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Tester Code</span>
+                <span id="sum-tester-code" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Tester Name</span>
+                <span id="sum-tester-name" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Classification</span>
+                <span id="sum-classification" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Due Date</span>
+                <span id="sum-due-date" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Date/Time Start</span>
+                <span id="sum-datetime-start" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Person in Charge</span>
+                <span id="sum-pic" class="summary-value"></span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Has Issues</span>
+                <span id="sum-issues" class="summary-value"></span>
+            </div>
+            <div class="summary-item" style="grid-column: 1 / -1;">
+                <span class="summary-label">Action Taken</span>
+                <span id="sum-action-taken" class="summary-value"></span>
+                <input type="text" id="input-action-taken" class="input-action-taken" placeholder="Describe actions taken to resolve any issues…" autocomplete="off">
+            </div>
+        </div>
+
+        <div id="modal-message" class="modal-message hidden"></div>
+
+        <div class="modal-actions">
+            <button type="button" id="btn-cancel-modal" class="btn-cancel-modal">Cancel</button>
+            <button type="button" id="btn-confirm-close" class="btn-confirm">✔ Confirm &amp; Submit</button>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/close.transaction.js') }}"></script>
+</body>
+</html>
