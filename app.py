@@ -19,7 +19,15 @@ user_auth       = UserAuth()
 
 @app.route('/')
 def index():
+    return render_template('selection_window.html')
+
+@app.route('/first_window')
+def first_window():
     return render_template('first_window.html')
+
+@app.route('/second_window')
+def second_window():
+    return render_template('second_window.html')
 
 # ─────────────────────────────────────────────
 # New Transaction
