@@ -1,6 +1,8 @@
 import os
+import urllib.parse
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker, scoped_session
 from contextlib import contextmanager
 
@@ -13,7 +15,15 @@ db_user = os.getenv("DB_USER", "testing")
 db_pass = os.getenv("DB_PASSWORD", "testing")
 db_name = os.getenv("DB_NAME", "te")
 
-te_url = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}?charset=utf8mb4"
+te_url = URL.create(
+    drivername="mysql+pymysql",
+    username=db_user,
+    password=db_pass,
+    host=db_host,
+    port=int(db_port),
+    database=db_name,
+    query={"charset": "utf8mb4"}
+)
 
 # Fallback mechanism if the provided port fails (from connect_db.py legacy logic)
 try:
@@ -26,7 +36,15 @@ try:
     te_engine.connect().close() # test connection
 except Exception:
     # If connection fails, fallback to 3306
-    te_url = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}:3306/{db_name}?charset=utf8mb4"
+    te_url = URL.create(
+        drivername="mysql+pymysql",
+        username=db_user,
+        password=db_pass,
+        host=db_host,
+        port=3306,
+        database=db_name,
+        query={"charset": "utf8mb4"}
+    )
     te_engine = create_engine(
         te_url,
         pool_size=5,
@@ -43,7 +61,15 @@ proj_user = os.getenv("PROJECTS_DB_USER", "readonly_user")
 proj_pass = os.getenv("PROJECTS_DB_PASSWORD", "kts@tsd2025")
 proj_name = os.getenv("PROJECTS_DB_NAME", "projectsdb")
 
-projects_url = f"mysql+pymysql://{proj_user}:{proj_pass}@{proj_host}:{proj_port}/{proj_name}?charset=utf8mb4"
+projects_url = URL.create(
+    drivername="mysql+pymysql",
+    username=proj_user,
+    password=proj_pass,
+    host=proj_host,
+    port=int(proj_port),
+    database=proj_name,
+    query={"charset": "utf8mb4"}
+)
 
 projects_engine = create_engine(
     projects_url,

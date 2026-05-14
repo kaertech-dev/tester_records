@@ -134,14 +134,15 @@ class TesterRecords:
             self._local_cache = records
             return records
 
+        records = {}
         with get_te_session() as session:
             rows = session.query(TesterCredential).all()
             
-        records = {}
-        for row in rows:
-            code   = row.tester_code or ''
-            suffix = code.split('-')[-1] if '-' in code else code
-            records.setdefault(suffix, []).append({'tester_code': row.tester_code, 'tester_name': row.tester_name})
+            for row in rows:
+                code   = row.tester_code or ''
+                suffix = code.split('-')[-1] if '-' in code else code
+                records.setdefault(suffix, []).append({'tester_code': row.tester_code, 'tester_name': row.tester_name})
+                
         _CACHE['tester_records'] = (records, now)
         self._local_cache = records
         return records
