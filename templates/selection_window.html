@@ -1,22 +1,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Window</title>
     
-    <link rel="stylesheet" href="/static/css/select_window.css"><!-- {{ url_for('static', filename='css/download_data.css') }} -->
+    <title>Selection Window</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/static/css/selection_window.css"><!-- {{ url_for('static', filename='css/download_data.css') }} -->
 </head>
 <body class="body">
-    <header>
-        <h1>Select Window</h1>
-    </header>
+    <div class="bg-grid"></div>
+    <div class="container">
+        <header class="header">
+            <div class="logo-wrap">
+                <div class="logo-icon">
+                    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="36" height="36" rx="10" fill="url(#logoGrad)"/>
+                        <path d="M10 12h16M10 18h10M10 24h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                        <circle cx="27" cy="24" r="4" fill="white" fill-opacity="0.9"/>
+                        <path d="M25.5 24l1 1 2-2" stroke="#1a9b3c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <defs>
+                            <linearGradient id="logoGrad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#22c55e"/>
+                                <stop offset="1" stop-color="#15803d"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-main">Selection Window</span>
+                    <span class="logo-sub">Traceability Management System</span>
+                </div>
+            </div>
+            
+            <button id="dl-open-btn" type="button" class="dl-open-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download Records
+            </button>
 
-    <main>
-        <p>select your process traceability option:</p>
-        <div class="button-group">
-            <a href="/new" class="btn btn-primary">TEST</a>
-            <a href="/close" class="btn btn-secondary">PROCESS</a>
-        </div>
-    </main>
+        </header>
+
+        <main class="main-content">
+            <p class="welcome-text">select your traceability option:</p>
+            <div class="action-grid">
+                <a href="{{ url_for('first_window') }}" class="action-card new-card">TEST</a>
+                <a href="{{ url_for('second_window') }}" class="action-card close-card">PROCESS</a>
+            </div>
+        </main>
+    </div>
 
     <footer>
         <!-- <button class="btn btn-secondary" id="back-btn" onclick="window.location.href='{{ url_for('index') }}'">Exit</button> -->
