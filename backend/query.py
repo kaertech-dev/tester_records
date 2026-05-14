@@ -1,8 +1,9 @@
 # query.py
 import time
-import pymysql
-from backend.new_transaction.connect_db import get_db_connection
 from datetime import datetime
+from sqlalchemy import text
+from backend.database import projects_engine, get_te_session
+from backend.orm_models import TesterRecord, TesterCredential, User
 
 _CACHE = {
     'active_products': (None, 0),
@@ -18,80 +19,52 @@ _CACHE_TTL = 300  # seconds
 # ── Customer ──────────────────────────────────────────────────────────────────
 
 class Customer:
-    """Reads active projects from projectsdb (separate host config — not pooled)."""
-
-    _config = {
-        "host":        "192.168.1.38",
-        "user":        "readonly_user",
-        "password":    "kts@tsd2025",
-        "database":    "projectsdb",
-        "charset":     "utf8mb4",
-        "cursorclass": pymysql.cursors.DictCursor,
-    }
+    """Reads active projects from projectsdb via SQLAlchemy engine."""
 
     def get_active_customer(self):
-        conn = None
         try:
-            conn = pymysql.connect(**self._config)
-            with conn.cursor() as cur:
-                cur.execute("""
+            with projects_engine.connect() as conn:
+                result = conn.execute(text("""
                     SELECT schemadb FROM projects
                     WHERE status IN ('ACTIVE', 'active', 'Active')
-                """)
-                return [{'id': r['schemadb'], 'name': r['schemadb']} for r in cur.fetchall()]
+                """))
+                return [{'id': r[0], 'name': r[0]} for r in result]
         except Exception as e:
             print(f"[Customer] {e}")
             return []
-        finally:
-            if conn:
-                conn.close()
 
 
 # ── Model ─────────────────────────────────────────────────────────────────────
 
 class Model:
-    """Reads table names from per-product schemas (separate host config — not pooled)."""
-
-    _base_config = {
-        "host":        "192.168.1.38",
-        "user":        "readonly_user",
-        "password":    "kts@tsd2025",
-        "charset":     "utf8mb4",
-        "cursorclass": pymysql.cursors.DictCursor,
-    }
-
-    def _connect(self, schemadb):
-        return pymysql.connect(**{**self._base_config, "database": schemadb})
+    """Reads table names from per-product schemas."""
 
     def get_models_for_customer(self, schemadb):
-        conn = None
         try:
-            conn = self._connect(schemadb)
-            with conn.cursor() as cur:
-                cur.execute("SHOW TABLES")
-                rows = cur.fetchall()
+            # Connect directly to the specific schema
+            # Can't easily change database context on the fly with engines safely across threads,
+            # so we'll execute a USE statement if supported, or schema-qualify SHOW TABLES.
+            # SHOW TABLES FROM `<schemadb>` is the safest way.
+            with projects_engine.connect() as conn:
+                result = conn.execute(text(f"SHOW TABLES FROM `{schemadb}`"))
+                rows = result.fetchall()
             if not rows:
                 return []
-            names = [list(r.values())[0] for r in rows]
+            names = [r[0] for r in rows]
             models = sorted(set(n.split('_')[0] for n in names))
             return [{'id': m, 'name': m} for m in models]
         except Exception as e:
             print(f"[Model] models for '{schemadb}': {e}")
             return []
-        finally:
-            if conn:
-                conn.close()
 
     def get_stations_for_model(self, schemadb, model_name):
-        conn = None
         try:
-            conn = self._connect(schemadb)
-            with conn.cursor() as cur:
-                cur.execute("SHOW TABLES")
-                rows = cur.fetchall()
+            with projects_engine.connect() as conn:
+                result = conn.execute(text(f"SHOW TABLES FROM `{schemadb}`"))
+                rows = result.fetchall()
             if not rows:
                 return []
-            names  = [list(r.values())[0] for r in rows]
+            names = [r[0] for r in rows]
             prefix = model_name + '_'
             stations = sorted(set(
                 n[len(prefix):] for n in names
@@ -101,9 +74,6 @@ class Model:
         except Exception as e:
             print(f"[Model] stations for '{schemadb}'.'{model_name}': {e}")
             return []
-        finally:
-            if conn:
-                conn.close()
 
 
 # ── ActiveProjects ────────────────────────────────────────────────────────────
@@ -149,15 +119,10 @@ class ActiveProjects:
 class TesterRecords:
     """
     All queries against te.tester_records.
-    Uses the shared connection pool via get_db_connection().
-
-    __init__ is now lazy: it does NOT touch the DB at construction time.
-    The tester-code lookup cache is populated on first use and refreshed
-    every _CACHE_TTL seconds via _load_tester_records().
+    Uses ORM Session.
     """
 
     def __init__(self):
-        # No DB call here — pool connections are precious at startup
         self._local_cache: dict | None = None
 
     # ── Internal cache helpers ────────────────────────────────────
@@ -169,21 +134,17 @@ class TesterRecords:
             self._local_cache = records
             return records
 
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT tester_code, tester_name FROM tester_credential")
-                rows = cur.fetchall()
-            records = {}
-            for row in rows:
-                code   = row.get('tester_code') or ''
-                suffix = code.split('-')[-1] if '-' in code else code
-                records.setdefault(suffix, []).append(row)
-            _CACHE['tester_records'] = (records, now)
-            self._local_cache = records
-            return records
-        finally:
-            conn.close()
+        with get_te_session() as session:
+            rows = session.query(TesterCredential).all()
+            
+        records = {}
+        for row in rows:
+            code   = row.tester_code or ''
+            suffix = code.split('-')[-1] if '-' in code else code
+            records.setdefault(suffix, []).append({'tester_code': row.tester_code, 'tester_name': row.tester_name})
+        _CACHE['tester_records'] = (records, now)
+        self._local_cache = records
+        return records
 
     @staticmethod
     def _suffix(asset_no: str) -> str:
@@ -197,7 +158,7 @@ class TesterRecords:
         suffix = self._suffix(fixture_asset_no)
         cache  = self._load_tester_records()
         rows   = cache.get(suffix, [])
-        return [{'tester_code': r['tester_code'], 'tester_name': r['tester_name']} for r in rows]
+        return rows
 
     def get_tester_by_fixture(self, fixture_asset_no: str):
         if not fixture_asset_no:
@@ -207,128 +168,77 @@ class TesterRecords:
         rows   = cache.get(suffix)
         if rows:
             return rows[0]
-        # Fallback: DB LIKE query for edge cases not covered by suffix index
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT tester_code, tester_name "
-                    "FROM tester_credential "
-                    "WHERE tester_code LIKE %s LIMIT 1",
-                    (f'%-{suffix}',)
-                )
-                return cur.fetchone()
-        finally:
-            conn.close()
+            
+        # Fallback: LIKE query for edge cases not covered by suffix index
+        with get_te_session() as session:
+            row = session.query(TesterCredential).filter(
+                TesterCredential.tester_code.like(f'%-{suffix}')
+            ).first()
+            if row:
+                return {'tester_code': row.tester_code, 'tester_name': row.tester_name}
+            return None
 
     def get_tester_name_by_code(self, tester_code: str):
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT tester_name FROM tester_records "
-                    "WHERE tester_code = %s LIMIT 1",
-                    (tester_code,)
-                )
-                row = cur.fetchone()
-                return row['tester_name'] if row else None
-        finally:
-            conn.close()
+        with get_te_session() as session:
+            row = session.query(TesterRecord).filter(TesterRecord.tester_code == tester_code).first()
+            return row.tester_name if row else None
 
     def get_open_transactions(self):
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        id,
-                        tester_code,
-                        tester_name,
-                        classification,
-                        due_date,
-                        datetime_start,
-                        datetime_done,
-                        pic,
-                        issues,
-                        action_taken,
-                        remarks
-                    FROM tester_records
-                    WHERE remarks = 'open'
-                    ORDER BY datetime_start DESC
-                    """
-                )
-                return cur.fetchall()
-        finally:
-            conn.close()
+        with get_te_session() as session:
+            rows = session.query(TesterRecord).filter(
+                TesterRecord.remarks == 'open'
+            ).order_by(TesterRecord.datetime_start.desc()).all()
+            
+            # Convert ORM objects to dicts for the frontend
+            return [{
+                'id': r.id,
+                'tester_code': r.tester_code,
+                'tester_name': r.tester_name,
+                'classification': r.classification,
+                'due_date': r.due_date,
+                'datetime_start': r.datetime_start,
+                'datetime_done': r.datetime_done,
+                'pic': r.pic,
+                'issues': r.issues,
+                'action_taken': r.action_taken,
+                'remarks': r.remarks
+            } for r in rows]
 
     # ── Write methods ─────────────────────────────────────────────
 
     def create_transaction(self, data: dict):
-        """
-        Insert a new open transaction.
-
-        DB columns:  tester_code, tester_name, classification,
-                     datetime_start, pic, issues, action_taken, remarks
-        Form keys:   tester_code, tester_name, classification,
-                     person_in_charge (→ pic), has_issues (→ issues),
-                     action_taken
-        """
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """INSERT INTO tester_records
-                       (tester_code, tester_name, classification,
-                        datetime_start, pic, issues, remarks)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                    (
-                        data.get('tester_code'),
-                        data.get('tester_name'),
-                        data.get('classification'),
-                        datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        data.get('person_in_charge'),   # form key → DB column 'pic'
-                        data.get('issues', ''),
-                        'open',
-                    )
-                )
-            conn.commit()
-            _CACHE['tester_records'] = (None, 0)   # bust cache
-        finally:
-            conn.close()
+        with get_te_session() as session:
+            new_record = TesterRecord(
+                tester_code=data.get('tester_code'),
+                tester_name=data.get('tester_name'),
+                classification=data.get('classification'),
+                datetime_start=datetime.now(),
+                pic=data.get('person_in_charge'),
+                issues=data.get('issues', ''),
+                remarks='open'
+            )
+            session.add(new_record)
+        _CACHE['tester_records'] = (None, 0)   # bust cache
 
     def close_transaction(self, transaction_id: int, action_taken: str = ''):
-        """
-        Stamp datetime_done and flip remarks → 'closed'.
-        No data is moved to another table.
-        """
-        conn = get_db_connection()
         try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT id FROM tester_records "
-                    "WHERE id = %s AND remarks = 'open'",
-                    (transaction_id,)
-                )
-                if not cur.fetchone():
+            with get_te_session() as session:
+                record = session.query(TesterRecord).filter(
+                    TesterRecord.id == transaction_id,
+                    TesterRecord.remarks == 'open'
+                ).first()
+                
+                if not record:
                     return False, 'Transaction not found or already closed.'
 
-                cur.execute(
-                    """UPDATE tester_records
-                    SET datetime_done = %s,
-                        remarks       = 'closed',
-                        action_taken  = %s
-                    WHERE id = %s""",
-                    (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), action_taken, transaction_id)
-                )
-            conn.commit()
+                record.datetime_done = datetime.now()
+                record.remarks = 'closed'
+                record.action_taken = action_taken
+                
             return True, 'Transaction closed successfully.'
         except Exception as e:
-            conn.rollback()
             print(f"[close_transaction] {e}")
             return False, str(e)
-        finally:
-            conn.close()
 
 
 # ── UserAuth ──────────────────────────────────────────────────────────────────
@@ -350,31 +260,20 @@ class UserAuth:
             self._users = users
             return users
 
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT `group`, badge, name, employee_num FROM user"
-                )
-                rows = cur.fetchall()
+        with get_te_session() as session:
+            rows = session.query(User).all()
             users = {
-                (r['group'], r['badge']): {
-                    'name':         r['name'],
-                    'employee_num': r.get('employee_num'),
+                (r.group, r.badge): {
+                    'name': r.name,
+                    'employee_num': r.employee_num,
                 }
                 for r in rows
             }
-            _CACHE['users'] = (users, now)
-            self._users = users
-            return users
-        finally:
-            conn.close()
+        _CACHE['users'] = (users, now)
+        self._users = users
+        return users
 
     def authenticate(self, group: str, password: str):
-        """
-        Returns {'name': ..., 'employee_num': ...} on success, None on failure.
-        Results are cached per (group, password) pair for _CACHE_TTL seconds.
-        """
         cache_key = f"{group}:{password}"
         now       = time.time()
 
@@ -385,7 +284,7 @@ class UserAuth:
         self._load_users()
         user   = self._users.get((group, password))
         result = (
-            {'name': user['name'], 'employee_num': user.get('employee_num')}
+            {'name': user['name'], 'employee_num': user['employee_num']}
             if user else None
         )
         _CACHE['auth'][cache_key] = (result, now)

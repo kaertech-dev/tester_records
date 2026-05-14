@@ -3,7 +3,6 @@ from flask import Flask, request, render_template, redirect, url_for, jsonify, s
 from backend.new_transaction.connect_db import ensure_indexes
 from backend.query import ActiveProjects, TesterRecords, UserAuth
 import os
-from backend.new_transaction.connect_db import get_db_connection
 from backend.download_data import download_bp
 
 app = Flask(__name__)
@@ -168,55 +167,7 @@ def fixture_lookup():
         'tester_name': row['tester_name'],
     })
 
-@app.route('/debug/open-txns')
-def debug_open_txns():
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM tester_records WHERE remarks = 'open' LIMIT 20")
-            rows = cur.fetchall()
-        conn.close()
-        return jsonify(rows)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    
-@app.route('/debug/open-txns-shape')
-def debug_open_txns_shape():
-    """
-    Visit /debug/open-txns-shape to inspect what the DB actually contains.
-    Shows: row count, column names, exact remarks values, and first row.
-    """
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            # 1. What do remarks values actually look like? (catches spaces, caps, etc.)
-            cur.execute("""
-                SELECT remarks, COUNT(*) as cnt
-                FROM tester_records
-                GROUP BY remarks
-            """)
-            remarks_summary = cur.fetchall()
 
-            # 2. Raw rows where remarks = 'open' (exact match)
-            cur.execute("""
-                SELECT id, tester_code, tester_name, classification,
-                       due_date, datetime_start, datetime_done,
-                       pic, issues, action_taken, remarks
-                FROM tester_records
-                WHERE remarks = 'open'
-                LIMIT 5
-            """)
-            rows = cur.fetchall()
-
-        conn.close()
-        return jsonify({
-            'remarks_in_db':   remarks_summary,   # shows every distinct remarks value + count
-            'open_row_count':  len(rows),
-            'first_row':       rows[0] if rows else None,
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    
 if __name__ == '__main__':
     try:
         ensure_indexes()
