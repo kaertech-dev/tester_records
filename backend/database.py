@@ -93,10 +93,69 @@ def get_te_session():
     finally:
         session.close()
 
+        
 @contextmanager
 def get_projects_session():
     """Provide a transactional scope around a series of operations for Projects DB."""
     session = ProjectsSessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+# ---process database configuration---
+process_db_host = os.getenv("PROCESS_DB_HOST", "192.168.1.38")
+process_db_port = os.getenv("PROCESS_DB_PORT", "3306")
+process_db_user = os.getenv("PROCESS_DB_USER", "testing")
+process_db_pass = os.getenv("PROCESS_DB_PASSWORD", "testing")
+process_db_name = os.getenv("PROCESS_DB_NAME", "pe")
+
+process_url = URL.create(
+    drivername="mysql+pymysql",
+    username=process_db_user,
+    password=process_db_pass,
+    host=process_db_host,
+    port=int(process_db_port),
+    database=process_db_name,
+    query={"charset": "utf8mb4"}
+)
+
+try:
+    process_engine = create_engine(
+        process_url,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+    )
+    process_engine.connect().close()  # test connection
+except Exception:
+    # If connection fails, fallback to 3306
+    process_url = URL.create(
+        drivername="mysql+pymysql",
+        username=process_db_user,
+        password=process_db_pass,
+        host=process_db_host,
+        port=3306,
+        database=process_db_name,
+        query={"charset": "utf8mb4"}
+    )
+    process_engine = create_engine(
+        process_url,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+    )
+
+ProcessSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=process_engine)
+
+@contextmanager
+def get_pe_session():
+    """Provide a transactional scope around a series of operations for PE DB."""
+    session = ProcessSessionLocal()
     try:
         yield session
         session.commit()

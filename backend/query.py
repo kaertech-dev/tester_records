@@ -2,8 +2,8 @@
 import time
 from datetime import datetime
 from sqlalchemy import text
-from backend.database import projects_engine, get_te_session
-from backend.orm_models import TesterRecord, TesterCredential, User
+from backend.database import projects_engine, get_te_session, get_pe_session
+from backend.orm_models import TesterRecord, TesterCredential, User, ProcessCredential, ProcessRecord
 
 _CACHE = {
     'active_products': (None, 0),
@@ -12,6 +12,8 @@ _CACHE = {
     'auth': {},
     'users': (None, 0),
     'tester_records': (None, 0),
+    'process_records': (None, 0),
+    'pe_users': (None, 0),
 }
 _CACHE_TTL = 300  # seconds
 
@@ -241,7 +243,132 @@ class TesterRecords:
             print(f"[close_transaction] {e}")
             return False, str(e)
 
+class ProcessRecords:
+    """All queries against pe.process_records and pe.process_credential."""
 
+    def __init__(self):
+        self._local_cache: dict | None = None
+
+    # ── Internal credential cache ─────────────────────────────────
+
+    def _load_credential_cache(self) -> dict:
+        now = time.time()
+        records, ts = _CACHE['process_records']
+        if records is not None and now - ts < _CACHE_TTL:
+            self._local_cache = records
+            return records
+
+        records = {}
+        try:
+            with get_pe_session() as session:
+                rows = session.query(ProcessCredential).all()
+                for row in rows:
+                    asset_id = row.asset_id or ''
+                    suffix = asset_id.split('-')[-1] if '-' in asset_id else asset_id
+                    records.setdefault(suffix, []).append({
+                        'asset_id': row.asset_id,
+                        'asset_name': row.asset_name
+                    })
+        except Exception as e:
+            print(f"[ProcessRecords._load_credential_cache] ERROR: {e}")  # ← log it
+            raise    
+
+        _CACHE['process_records'] = (records, now)
+        self._local_cache = records
+        return records
+
+    @staticmethod
+    def _suffix(asset_no: str) -> str:
+        return asset_no.split('-')[-1] if '-' in asset_no else asset_no
+
+    # ── Asset lookup ──────────────────────────────────────────────
+
+    def get_asset_by_id(self, asset_id: str):
+        """Return {'asset_id': ..., 'asset_name': ...} or None."""
+        if not asset_id:
+            return None
+        try:
+            suffix = self._suffix(asset_id)
+            cache  = self._load_credential_cache()
+            rows   = cache.get(suffix)
+            if rows:
+                # Prefer exact match
+                for r in rows:
+                    if r['asset_id'].upper() == asset_id.upper():
+                        return r
+                return rows[0]
+
+            # Fallback: exact DB query
+            with get_pe_session() as session:
+                row = session.query(ProcessCredential).filter(
+                    ProcessCredential.asset_id == asset_id
+                ).first()
+                if row:
+                    return {'asset_id': row.asset_id, 'asset_name': row.asset_name}
+                return None
+        except Exception as e:
+            print(f"[ProcessRecords.get_asset_by_id] ERROR for '{asset_id}': {e}")  # ← log it
+            raise
+    # ── PE user search ────────────────────────────────────────────
+
+    def search_pe_users(self, query: str):
+        """Return a list of matching PE users [{name, group, employee_num}]."""
+        now = time.time()
+        users, ts = _CACHE['pe_users']
+        if users is None or now - ts >= _CACHE_TTL:
+            with get_pe_session() as session:
+                rows = session.query(User).all()
+                users = [
+                    {'name': r.name, 'group': r.group, 'employee_num': r.employee_num}
+                    for r in rows
+                ]
+            _CACHE['pe_users'] = (users, now)
+
+        q = query.lower()
+        return [
+            u for u in users
+            if q in (u.get('name') or '').lower() or q in (u.get('group') or '').lower()
+        ][:20]
+
+    # ── Write methods ─────────────────────────────────────────────
+
+    def create_transaction(self, data: dict):
+        """Insert a new ProcessRecord into pe.process_records."""
+        def _parse_dt(val):
+            if not val:
+                return None
+            try:
+                return datetime.fromisoformat(val)
+            except ValueError:
+                return None
+
+        def _parse_date(val):
+            if not val:
+                return None
+            try:
+                return datetime.strptime(val, '%Y-%m-%d').date()
+            except ValueError:
+                return None
+
+        with get_pe_session() as session:
+            new_record = ProcessRecord(
+                asset_id           = data.get('asset_id', '').strip(),
+                asset_name         = data.get('asset_name', '').strip(),
+                line_no            = data.get('line_no', '').strip(),
+                description        = data.get('description', '').strip(),
+                analysis           = data.get('analysis', '').strip(),
+                corrective_action  = data.get('corrective_action', '').strip(),
+                verification_result= data.get('verification_result', '').strip(),
+                equip_down    = _parse_dt(data.get('equip_down')),
+                repair_start       = _parse_dt(data.get('repair_start')),
+                repair_end         = _parse_dt(data.get('repair_end')),
+                troubleshoot_by    = data.get('troubleshoot_by', '').strip(),
+                retention_period   = data.get('retention_period', '').strip(),
+                effective_date     = _parse_date(data.get('effective_date')),
+                logged_by           = data.get('logged_by', '').strip(),
+            )
+            session.add(new_record)
+        _CACHE['process_records'] = (None, 0)  # bust cache
 # ── UserAuth ──────────────────────────────────────────────────────────────────
 
 class UserAuth:
