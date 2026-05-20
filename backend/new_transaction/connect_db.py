@@ -1,4 +1,4 @@
-from backend.database import te_engine, projects_engine
+from backend.database import te_engine, projects_engine, process_engine
 from sqlalchemy import text
 
 def _ensure_index(connection, table, index_name, columns):
@@ -28,3 +28,11 @@ def ensure_indexes():
             _ensure_index(proj_conn, 'projects', 'idx_projects_status', '`status`')
     except Exception as e:
         print(f"Error connecting to Projects DB for indexes: {e}")
+    
+    try:
+        with process_engine.connect() as proc_conn:
+            _ensure_index(proc_conn, 'process_records', 'idx_asset_id', '`asset_id`')
+            _ensure_index(proc_conn, 'process_records', 'idx_asset_name', '`asset_name`')
+            _ensure_index(proc_conn, 'user', 'idx_user_group_badge', '`group`, `badge`')
+    except Exception as e:
+        print(f"Error connecting to Process DB for indexes: {e}")
