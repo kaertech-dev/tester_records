@@ -2,11 +2,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <title>Selection Window</title>
+    <title>TRACEABILITY SYSTEM</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
     <link rel="stylesheet" href="/static/css/selection_window.css"><!-- {{ url_for('static', filename='css/download_data.css') }} -->
 </head>
 <body class="body">
@@ -51,7 +51,7 @@
             <p class="welcome-text">select your traceability option:</p>
             <div class="action-grid">
                 <a href="{{ url_for('first_window') }}" class="action-card new-card">TEST</a>
-                <a href="{{ url_for('second_window') }}" class="action-card close-card">PROCESS</a>
+                <a href="{{ url_for('second_window') }}" class="action-card close-card">PROCESS / EQUIPMENT</a>
             </div>
         </main>
     </div>

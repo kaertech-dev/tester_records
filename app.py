@@ -1,7 +1,10 @@
 # app.py
-from flask import Flask, request, render_template, redirect, url_for, jsonify, session
+from flask import Flask, request, render_template, redirect, url_for, jsonify, session, send_file
 from backend.new_transaction.connect_db import ensure_indexes
-from backend.query import ActiveProjects, TesterRecords, UserAuth
+from backend.query import ActiveProjects, TesterRecords, UserAuth, ProcessRecords
+from backend.database import get_te_session, get_pe_session
+from backend.excel_form import build_downtime_report
+import io
 import os
 from backend.download_data import download_bp
 
@@ -9,9 +12,10 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)
 app.register_blueprint(download_bp)
 
-active_projects = ActiveProjects()
-tester_records  = TesterRecords()
-user_auth       = UserAuth()
+active_projects  = ActiveProjects()
+tester_records   = TesterRecords()
+user_auth        = UserAuth()
+process_records  = ProcessRecords()
 
 # ─────────────────────────────────────────────
 # Landing Page
@@ -21,16 +25,18 @@ user_auth       = UserAuth()
 def index():
     return render_template('selection_window.html')
 
-@app.route('/first_window')
+# this route directed to tester side
+@app.route('/first-window')
 def first_window():
     return render_template('first_window.html')
 
-@app.route('/second_window')
+# this route directed to process side
+@app.route('/second-window')
 def second_window():
     return render_template('second_window.html')
 
 # ─────────────────────────────────────────────
-# New Transaction
+# New Transaction   - te side
 # ─────────────────────────────────────────────
 
 @app.route('/new-transaction', methods=['GET', 'POST'])
@@ -143,7 +149,6 @@ def api_tester_codes():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
 @app.route('/api/tester-name')
 def api_tester_name():
     code = request.args.get('code', '').strip()
@@ -174,8 +179,172 @@ def fixture_lookup():
         'tester_code': row['tester_code'],
         'tester_name': row['tester_name'],
     })
+# ─────────────────────────────────────────────
+#               Process Side
+# ─────────────────────────────────────────────
+@app.route('/process-login', methods=['GET'])
+def process_login_page():
+    if session.get('pe_user'):
+        return redirect(url_for('process_new_transaction'))
+    return render_template('process_login.html')
 
 
+@app.route('/api/process-login', methods=['POST'])
+def process_login():
+    payload  = request.get_json() or {}
+    ke_no    = (payload.get('ke_no') or '').strip()
+    password = (payload.get('password') or '').strip()
+
+    if not ke_no or not password:
+        return jsonify({'success': False, 'message': 'KE No. and password are required.'}), 400
+
+    try:
+        from backend.orm_models import User
+        user_data = None
+        with get_pe_session() as db:
+            user = db.query(User).filter(
+                User.employee_num == ke_no,
+                User.badge == password
+            ).first()
+            if user:
+                user_data = {
+                    'name':         user.name,
+                    'employee_num': user.employee_num,
+                    'group':        user.group,
+                }
+
+        if user_data:
+            session['pe_user'] = user_data          # ← persist across refreshes
+            return jsonify({'success': True, 'user': user_data})
+        return jsonify({'success': False, 'message': 'Invalid KE No. or password.'}), 401
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/process-logout', methods=['POST'])
+def process_logout():
+    session.pop('pe_user', None)
+    return jsonify({'success': True})
+
+@app.route('/process-new-transaction', methods=['GET', 'POST'])
+def process_new_transaction():
+    # Guard — redirect to login if not authenticated
+    if not session.get('pe_user'):
+        return redirect(url_for('process_login_page'))
+    
+    if request.method == 'POST':
+        data = {
+            'asset_id':            request.form.get('asset_id', '').strip(),
+            'asset_name':          request.form.get('asset_name', '').strip(),
+            'line_no':             request.form.get('line_no', '').strip(),
+            'description':         request.form.get('description', '').strip(),
+            'analysis':            request.form.get('analysis', '').strip(),
+            'corrective_action':   request.form.get('corrective_action', '').strip(),
+            'verification_result': request.form.get('verification_result', '').strip(),
+            'equip_down':          request.form.get('equip_down', '').strip(),
+            'repair_start':        request.form.get('repair_start', '').strip(),
+            'repair_end':          request.form.get('repair_end', '').strip(),
+            'troubleshoot_by':     request.form.get('troubleshoot_by', '').strip(),
+            'retention_period':    request.form.get('retention_period', '').strip(),
+            'effective_date':      request.form.get('effective_date', '').strip(),
+            'logged_by':           session['pe_user'].get('employee_num', ''),
+        }
+
+        # Read optional image uploads (kept in memory only — never saved to disk)
+        # NEW — multi-image reader
+        def _read_images(field_name: str) -> list[bytes]:
+            files = request.files.getlist(field_name)
+            return [f.read() for f in files if f and f.filename]
+
+        analysis_imgs          = _read_images('analysis_images')
+        corrective_action_imgs = _read_images('corrective_action_images')
+        verification_imgs      = _read_images('verification_images')
+
+        try:
+            xlsx_bytes = build_downtime_report(
+                data,
+                analysis_imgs=analysis_imgs,
+                corrective_action_imgs=corrective_action_imgs,
+                verification_imgs=verification_imgs,
+            )
+        except Exception as e:
+            return jsonify({'error': f'Excel generation failed: {str(e)}'}), 500
+
+        asset_id_safe = data['asset_id'].replace('/', '-').replace('\\', '-') or 'report'
+        filename = f"downtime_report_{asset_id_safe}.xlsx"
+
+        return send_file(
+            io.BytesIO(xlsx_bytes),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename,
+        )
+
+    return render_template('process_new_transaction.html')
+
+@app.route('/process-close-transaction')
+def process_close_transaction():
+    return render_template('process_close_transaction.html')
+
+# ── Process-side API endpoints ────────────────────────────────────────────────
+
+@app.route('/api/process-asset-lookup', methods=['POST'])
+def process_asset_lookup():
+    body     = request.get_json(force=True)
+    asset_id = (body.get('asset_id') or '').strip()
+
+    if not asset_id:
+        return jsonify({'success': False, 'message': 'Asset ID is required.'}), 400
+    try:
+        row = process_records.get_asset_by_id(asset_id)
+    except Exception as e:
+        print(f"[process_asset_lookup] Unhandled exception: {e}")
+        return jsonify({'success': False, 'message': f'Server error: {str(e)}'}), 500
+
+    if not row:
+        return jsonify({'success': False, 'message': f'No asset found for "{asset_id}".'}), 404
+
+    return jsonify({
+        'success':    True,
+        'asset_id':   row['asset_id'],
+        'asset_name': row['asset_name'],
+    })
+
+@app.route('/api/pe-users')
+def pe_users_search():
+    query = request.args.get('q', '').strip()
+    if len(query) < 2:
+        return jsonify([])
+    try:
+        users = process_records.search_pe_users(query)
+        return jsonify(users)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/process-submit-data', methods=['POST'])
+def process_submit_data():
+    data = {
+        'asset_id':            request.form.get('asset_id', '').strip(),
+        'asset_name':          request.form.get('asset_name', '').strip(),
+        'line_no':             request.form.get('line_no', '').strip(),
+        'description':         request.form.get('description', '').strip(),
+        'analysis':            request.form.get('analysis', '').strip(),
+        'corrective_action':   request.form.get('corrective_action', '').strip(),
+        'verification_result': request.form.get('verification_result', '').strip(),
+        'equip_down':          request.form.get('equip_down', '').strip(),
+        'repair_start':        request.form.get('repair_start', '').strip(),
+        'repair_end':          request.form.get('repair_end', '').strip(),
+        'troubleshoot_by':     request.form.get('troubleshoot_by', '').strip(),
+        'retention_period':    request.form.get('retention_period', '').strip(),
+        'effective_date':      request.form.get('effective_date', '').strip(),
+        'logged_by':           session['pe_user'].get('employee_num', ''),
+    }
+    try:
+        process_records.create_transaction(data)
+        return jsonify({'success': True, 'message': 'Transaction saved successfully.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    
 if __name__ == '__main__':
     try:
         ensure_indexes()

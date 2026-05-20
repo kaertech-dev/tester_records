@@ -3,3 +3,5 @@ SQLAlchemy
 pymysql
 python-dotenv
 gunicorn
+openpyxl
+Pillow
