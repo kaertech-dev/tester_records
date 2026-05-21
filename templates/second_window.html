@@ -1,4 +1,4 @@
-<!-- first_window.html -->
+<!-- second_window.html -->
 <!DOCTYPE html>
 <html lang="en">
 
@@ -46,28 +46,15 @@
                     <span class="logo-sub">Tester Record Management System</span>
                 </div>
             </div>
-
-            <!-- <button id="dl-open-btn" type="button" class="dl-open-btn">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            <button id="stn-open-btn" type="button" class="dl-open-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M3 9h18M9 21V9"/>
                 </svg>
-                Download Records
-            </button> -->
-
-            <!-- <button id="submit-data" type="button" class="dl-open-btn">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="23 9 23 4 18 4" />
-                    <path d="M23 9L17 3" />
-                    <path d="M4 15v4a2 2 0 0 0 2 2h9" />
-                    <polyline points="21 15 16 10 5 21" />
-                </svg>
-                Submit Data
-            </button> -->
-
+                Download Station Data
+            </button>
         </header>
 
         <main class="main-content">
@@ -230,6 +217,123 @@
 
         </div>
     </div>
+    <div id="stn-overlay" class="stn-overlay">
+        <div class="dl-modal stn-modal-wide" role="dialog" aria-modal="true" aria-labelledby="stn-modal-title">
+        
+            <!-- Header -->
+            <div class="dl-header">
+                <div class="dl-title" id="stn-modal-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M3 9h18M9 21V9"/>
+                    </svg>
+                    Download Station Data
+                </div>
+                <button id="stn-close-btn" class="dl-close" aria-label="Close">✕</button>
+            </div>
+        
+            <!-- ── Filter row: station + date tabs side by side ── -->
+            <div class="stn-filter-row">
+        
+                <!-- Station selector -->
+                <div class="stn-filter-station">
+                    <label class="dl-label" for="stn-station">Station</label>
+                    <select class="dl-inputs" id="stn-station">
+                        <option value="">— Select station —</option>
+                    </select>
+                </div>
+            
+                <!-- Date mode tabs + panels -->
+                <div class="stn-filter-date">
+                    <div class="dl-tabs" role="tablist">
+                        <button class="stn-tab dl-tab active" data-mode="today"  role="tab">Today</button>
+                        <button class="stn-tab dl-tab"        data-mode="day"    role="tab">Day</button>
+                        <button class="stn-tab dl-tab"        data-mode="week"   role="tab">Week</button>
+                        <button class="stn-tab dl-tab"        data-mode="month"  role="tab">Month</button>
+                        <button class="stn-tab dl-tab"        data-mode="range"  role="tab">Range</button>
+                    </div>
+            
+                    <div class="stn-panel dl-panel active" id="stn-panel-today" role="tabpanel">
+                        <p class="dl-note">All records created <strong>today</strong>.</p>
+                    </div>
+                    <div class="stn-panel dl-panel" id="stn-panel-day" role="tabpanel">
+                        <div class="dl-field">
+                            <label class="dl-label" for="stn-date">Select Date</label>
+                            <input class="dl-input" type="date" id="stn-date">
+                        </div>
+                    </div>
+                    <div class="stn-panel dl-panel" id="stn-panel-week" role="tabpanel">
+                        <div class="dl-row">
+                            <div class="dl-field">
+                            <label class="dl-label" for="stn-week-year">Year</label>
+                            <input class="dl-input" type="number" id="stn-week-year" min="2000" max="2099" placeholder="2025">
+                            </div>
+                            <div class="dl-field">
+                            <label class="dl-label" for="stn-week-num">ISO Week #</label>
+                            <input class="dl-input" type="number" id="stn-week-num" min="1" max="53" placeholder="1–53">
+                            </div>
+                        </div>
+                        <p class="dl-note">Mon → Sun (ISO 8601)</p>
+                    </div>
+                    <div class="stn-panel dl-panel" id="stn-panel-month" role="tabpanel">
+                        <div class="dl-row">
+                            <div class="dl-field">
+                                <label class="dl-label" for="stn-month-year">Year</label>
+                                <input class="dl-input" type="number" id="stn-month-year" min="2000" max="2099" placeholder="2025">
+                            </div>
+                            <div class="dl-field">
+                                <label class="dl-label" for="stn-month-num">Month</label>
+                                <input class="dl-input" type="number" id="stn-month-num" min="1" max="12" placeholder="1–12">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stn-panel dl-panel" id="stn-panel-range" role="tabpanel">
+                        <div class="dl-row">
+                            <div class="dl-field">
+                                <label class="dl-label" for="stn-range-start">From</label>
+                                <input class="dl-input" type="date" id="stn-range-start">
+                            </div>
+                            <div class="dl-field">
+                                <label class="dl-label" for="stn-range-end">To</label>
+                                <input class="dl-input" type="date" id="stn-range-end">
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /stn-filter-date -->
+            </div><!-- /stn-filter-row -->
+        
+            <!-- Preview button -->
+            <div class="stn-preview-action">
+                <button id="stn-preview-btn" type="button" class="stn-btn-preview">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    Preview Data
+                </button>
+            </div>
+        
+            <!-- ── Preview panel (hidden until data loads) ── -->
+            <div id="stn-preview-wrap" class="stn-preview-wrap" style="display:none;"></div>
+        
+                <!-- Footer -->
+                <div class="dl-footer">
+                    <button id="stn-cancel-btn" type="button" class="dl-btn-cancel">Cancel</button>
+                    <button id="stn-dl-btn" type="button" class="dl-btn-download" disabled>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download Excel
+                    </button>
+                </div>
+        
+            <div id="stn-status" class="dl-status"></div>
+        </div>
+    </div>
 
     <script>
         const dot = document.getElementById('cursor-dot');
@@ -269,6 +373,7 @@
         }
     </script>
     <script src="{{ url_for('static', filename='js/download_data.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/download_station_data.js') }}"></script>
 </body>
 
 </html>

@@ -7,10 +7,11 @@ from backend.excel_form import build_downtime_report
 import io
 import os
 from backend.download_data import download_bp
+from backend.download_station_data import station_bp
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
-app.register_blueprint(download_bp)
+app.register_blueprint(station_bp)
 
 active_projects  = ActiveProjects()
 tester_records   = TesterRecords()
