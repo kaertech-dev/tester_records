@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operator Sign-In — New User</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/signin_user.css') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <div class="dept-tag">Operators Department</div>
+    <h1>Sign In <span>New User</span></h1>
+    <p class="subtitle">Complete the form to register a new operator.</p>
+  </div>
+  <div class="divider"></div>
+
+  <form id="signinForm" novalidate autocomplete="off">
+    <div class="form-grid">
+
+      <div class="field">
+        <label for="operator_en">Operator EN</label>
+        <input type="text" id="operator_en" name="operator_en" placeholder="e.g. OP-00123" />
+        <span class="field-error" id="err_operator_en"></span>
+      </div>
+
+      <div class="field">
+        <label for="employee_name">Employee Name</label>
+        <input type="text" id="employee_name" name="employee_name" placeholder="Full name" />
+        <span class="field-error" id="err_employee_name"></span>
+      </div>
+
+      <div class="field">
+        <label for="date_hired">Date Hired</label>
+        <input type="date" id="date_hired" name="date_hired" />
+        <span class="field-error" id="err_date_hired"></span>
+      </div>
+
+      <div class="field">
+        <label for="status">Status</label>
+        <input type="text" id="status" name="status" placeholder="e.g. Active" />
+        <span class="field-error" id="err_status"></span>
+      </div>
+
+      <div class="field">
+        <label for="contact">Contact</label>
+        <input type="tel" id="contact" name="contact" placeholder="e.g. 09XX XXX XXXX" />
+        <span class="field-error" id="err_contact"></span>
+      </div>
+
+      <div class="field">
+        <label for="process">Process</label>
+        <input type="text" id="process" name="process" placeholder="e.g. Assembly" />
+        <span class="field-error" id="err_process"></span>
+      </div>
+
+    </div><!-- /.form-grid -->
+
+    <button type="submit" class="btn-submit" id="submitBtn">
+      <span class="btn-text">Register Operator</span>
+      <span class="spinner"></span>
+    </button>
+  </form>
+</div><!-- /.card -->
+
+<div id="toast">
+  <span class="toast-icon">✓</span>
+  <span id="toastMsg">Done!</span>
+</div>
+
+<script>
+  const fields = ['operator_en','employee_name','date_hired','status','contact','process'];
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    const icon = t.querySelector('.toast-icon');
+    document.getElementById('toastMsg').textContent = msg;
+    t.classList.toggle('toast-error', isError);
+    icon.textContent = isError ? '✕' : '✓';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  function clearErrors() {
+    fields.forEach(f => {
+      document.getElementById(f).classList.remove('error-field');
+      document.getElementById('err_' + f).textContent = '';
+    });
+  }
+
+  function validate(data) {
+    let ok = true;
+    fields.forEach(f => {
+      if (!data[f] || !data[f].trim()) {
+        document.getElementById(f).classList.add('error-field');
+        document.getElementById('err_' + f).textContent = 'This field is required.';
+        ok = false;
+      }
+    });
+    return ok;
+  }
+
+  document.getElementById('signinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors();
+
+    const data = {};
+    fields.forEach(f => data[f] = document.getElementById(f).value);
+
+    if (!validate(data)) return;
+
+    const btn = document.getElementById('submitBtn');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
+
+      if (json.success) {
+        showToast(json.message);
+        document.getElementById('signinForm').reset();
+      } else {
+        showToast(json.message || 'Something went wrong.', true);
+      }
+    } catch (err) {
+      showToast('Network error. Please try again.', true);
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  });
+
+  // Remove error state on input
+  fields.forEach(f => {
+    document.getElementById(f).addEventListener('input', () => {
+      document.getElementById(f).classList.remove('error-field');
+      document.getElementById('err_' + f).textContent = '';
+    });
+  });
+</script>
+</body>
+</html>
