@@ -20,8 +20,8 @@ station_bp = Blueprint('station_bp', __name__)
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 DB_CONFIG = {
-    "host":     "192.168.2.5",# change the .1.38 to 2.5
-    # "port":     3306,
+    "host":     "192.168.1.38",
+    "port":     3306,
     "user":     "readonly_user",
     "password": "kts@tsd2025",
 }

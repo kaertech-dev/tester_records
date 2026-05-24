@@ -7,7 +7,7 @@ import pymysql
 class Classification:
     def __init__(self):
         self.config = {
-            "host": "192.168.2.5",# change the .1.38 to 2.5
+            "host": "192.168.1.38",
             "user": "readonly_user",
             "password": "kts@tsd2025",
             "database": "engineering",
