@@ -9,8 +9,8 @@ from contextlib import contextmanager
 load_dotenv()
 
 # --- te database configuration ---
-db_host = os.getenv("DB_HOST", "192.168.1.38")
-db_port = os.getenv("DB_PORT", "3306")
+db_host = os.getenv("DB_HOST", "192.168.2.5")#1.38
+# db_port = os.getenv("DB_PORT", "3306")
 db_user = os.getenv("DB_USER", "testing")
 db_pass = os.getenv("DB_PASSWORD", "testing")
 db_name = os.getenv("DB_NAME", "te")
@@ -20,7 +20,7 @@ te_url = URL.create(
     username=db_user,
     password=db_pass,
     host=db_host,
-    port=int(db_port),
+    # port=int(db_port),
     database=db_name,
     query={"charset": "utf8mb4"}
 )
@@ -41,7 +41,7 @@ except Exception:
         username=db_user,
         password=db_pass,
         host=db_host,
-        port=3306,
+        # port=3306,
         database=db_name,
         query={"charset": "utf8mb4"}
     )
@@ -55,8 +55,8 @@ except Exception:
 TeSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=te_engine)
 
 # --- projectsdb database configuration ---
-proj_host = os.getenv("PROJECTS_DB_HOST", "192.168.1.38")
-proj_port = os.getenv("PROJECTS_DB_PORT", "3306")
+proj_host = os.getenv("PROJECTS_DB_HOST", "192.168.2.5")#1.38
+# proj_port = os.getenv("PROJECTS_DB_PORT", "3306")
 proj_user = os.getenv("PROJECTS_DB_USER", "readonly_user")
 proj_pass = os.getenv("PROJECTS_DB_PASSWORD", "kts@tsd2025")
 proj_name = os.getenv("PROJECTS_DB_NAME", "projectsdb")
@@ -66,7 +66,7 @@ projects_url = URL.create(
     username=proj_user,
     password=proj_pass,
     host=proj_host,
-    port=int(proj_port),
+    # port=int(proj_port),
     database=proj_name,
     query={"charset": "utf8mb4"}
 )
@@ -108,8 +108,8 @@ def get_projects_session():
         session.close()
 
 # ---process database configuration---
-process_db_host = os.getenv("PROCESS_DB_HOST", "192.168.1.38")
-process_db_port = os.getenv("PROCESS_DB_PORT", "3306")
+process_db_host = os.getenv("PROCESS_DB_HOST", "192.168.2.5")#1.38
+# process_db_port = os.getenv("PROCESS_DB_PORT", "3306")
 process_db_user = os.getenv("PROCESS_DB_USER", "testing")
 process_db_pass = os.getenv("PROCESS_DB_PASSWORD", "testing")
 process_db_name = os.getenv("PROCESS_DB_NAME", "pe")
@@ -119,7 +119,7 @@ process_url = URL.create(
     username=process_db_user,
     password=process_db_pass,
     host=process_db_host,
-    port=int(process_db_port),
+    # port=int(process_db_port),
     database=process_db_name,
     query={"charset": "utf8mb4"}
 )
@@ -139,7 +139,7 @@ except Exception:
         username=process_db_user,
         password=process_db_pass,
         host=process_db_host,
-        port=3306,
+        # port=3306,
         database=process_db_name,
         query={"charset": "utf8mb4"}
     )
