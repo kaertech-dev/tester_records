@@ -11,8 +11,8 @@ load_dotenv()
 # --- te database configuration ---
 db_host = os.getenv("DB_HOST", "192.168.2.5")#1.38
 # db_port = os.getenv("DB_PORT", "3306")
-db_user = os.getenv("DB_USER", "testing")
-db_pass = os.getenv("DB_PASSWORD", "testing")
+db_user = os.getenv("DB_USER", "labeling")
+db_pass = os.getenv("DB_PASSWORD", "labeling")
 db_name = os.getenv("DB_NAME", "te")
 
 te_url = URL.create(
@@ -110,8 +110,8 @@ def get_projects_session():
 # ---process database configuration---
 process_db_host = os.getenv("PROCESS_DB_HOST", "192.168.2.5")#1.38
 # process_db_port = os.getenv("PROCESS_DB_PORT", "3306")
-process_db_user = os.getenv("PROCESS_DB_USER", "testing")
-process_db_pass = os.getenv("PROCESS_DB_PASSWORD", "testing")
+process_db_user = os.getenv("PROCESS_DB_USER", "labeling")
+process_db_pass = os.getenv("PROCESS_DB_PASSWORD", "labeling")
 process_db_name = os.getenv("PROCESS_DB_NAME", "pe")
 
 process_url = URL.create(
