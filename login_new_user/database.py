@@ -7,8 +7,8 @@ class Database:
         self.connection = pymysql.connect(
             host='192.168.1.38',
             port=3306,
-            user='testing',
-            password='testing',
+            user='labeling',
+            password='labeling',
             db='operators'
         )
 
