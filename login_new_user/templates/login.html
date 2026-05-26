@@ -1,0 +1,150 @@
+<!-- login.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operator Portal — Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <div class="dept-tag">Production</div>
+    <h1>Operator <span>Portal</span></h1>
+    <p class="subtitle">Sign in with your employee number and badge to continue.</p>
+  </div>
+  <div class="divider"></div>
+
+  <form id="loginForm" novalidate autocomplete="off">
+
+    <div class="field">
+      <label for="employee_num">Employee Number</label>
+      <input type="text" id="employee_num" name="employee_num" placeholder="e.g. KE0412" />
+      <span class="field-error" id="err_employee_num"></span>
+    </div>
+
+    <div class="field" style="margin-top: 1rem;">
+      <label for="badge">Badge</label>
+      <div class="password-wrap">
+        <input type="password" id="badge" name="badge" placeholder="Enter your badge" />
+        <button type="button" class="toggle-pw" id="toggleBadge" aria-label="Show badge">
+          <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+      </div>
+      <span class="field-error" id="err_badge"></span>
+    </div>
+
+    <div class="alert-box" id="alertBox" style="display:none;">
+      <span class="alert-icon">✕</span>
+      <span id="alertMsg"></span>
+    </div>
+
+    <button type="submit" class="btn-submit" id="loginBtn">
+      <span class="btn-text">Sign In</span>
+      <span class="spinner"></span>
+    </button>
+
+  </form>
+</div>
+
+<script>
+  const loginForm = document.getElementById('loginForm');
+  const loginBtn  = document.getElementById('loginBtn');
+  const alertBox  = document.getElementById('alertBox');
+  const alertMsg  = document.getElementById('alertMsg');
+
+  // Toggle badge visibility
+  document.getElementById('toggleBadge').addEventListener('click', () => {
+    const input = document.getElementById('badge');
+    const icon  = document.getElementById('eyeIcon');
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.innerHTML = `
+        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"></path>
+        <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"></path>
+        <line x1="1" y1="1" x2="23" y2="23"></line>`;
+    } else {
+      input.type = 'password';
+      icon.innerHTML = `
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>`;
+    }
+  });
+
+  function showAlert(msg) {
+    alertMsg.textContent = msg;
+    alertBox.style.display = 'flex';
+  }
+  function hideAlert() {
+    alertBox.style.display = 'none';
+  }
+
+  function clearErrors() {
+    ['employee_num', 'badge'].forEach(f => {
+      document.getElementById(f).classList.remove('error-field');
+      document.getElementById('err_' + f).textContent = '';
+    });
+    hideAlert();
+  }
+
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors();
+
+    const employee_num = document.getElementById('employee_num').value.trim();
+    const badge        = document.getElementById('badge').value.trim();
+
+    let ok = true;
+    if (!employee_num) {
+      document.getElementById('employee_num').classList.add('error-field');
+      document.getElementById('err_employee_num').textContent = 'Employee number is required.';
+      ok = false;
+    }
+    if (!badge) {
+      document.getElementById('badge').classList.add('error-field');
+      document.getElementById('err_badge').textContent = 'Badge is required.';
+      ok = false;
+    }
+    if (!ok) return;
+
+    loginBtn.classList.add('loading');
+    loginBtn.disabled = true;
+
+    try {
+      const res  = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_num, badge })
+      });
+      const json = await res.json();
+
+      if (json.success) {
+        window.location.href = json.redirect || '/';
+      } else {
+        showAlert(json.message || 'Invalid credentials.');
+      }
+    } catch (err) {
+      showAlert('Network error. Please try again.');
+    } finally {
+      loginBtn.classList.remove('loading');
+      loginBtn.disabled = false;
+    }
+  });
+
+  ['employee_num', 'badge'].forEach(f => {
+    document.getElementById(f).addEventListener('input', () => {
+      document.getElementById(f).classList.remove('error-field');
+      document.getElementById('err_' + f).textContent = '';
+      hideAlert();
+    });
+  });
+</script>
+</body>
+</html>
