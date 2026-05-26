@@ -8,7 +8,7 @@ app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)   # Change to a fixed value in production
 db = Database()
 
-ADMINS = {'KE0412', 'KE0030'}
+ADMINS = {'KE0412', 'KE0030', 'KE0090'}
 
 
 # ── Auth decorators ───────────────────────────────────────────────────────────
