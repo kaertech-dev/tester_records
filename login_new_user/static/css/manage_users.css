@@ -6,11 +6,12 @@
     --sidebar:   #052010;
     --card:      #072511;
     --border:    #1e3a2a;
-    --accent:    #00d4ff;
-    --accent2:   #0066ff;
-    --success:   #00e5a0;
+    --accent:    #b0b865;
+    --accent2:   #81ba8e;
+    --success:   #606060;
     --error:     #ff4d6d;
     --text:      #e8edf5;
+    --kaer:      #126850;
     --muted:     #6b9c7e;
     --input-bg:  #48a466;
     --row-hover: #0a3318;
@@ -53,7 +54,7 @@ body {
 }
 .brand-dot {
     width: 10px; height: 10px;
-    background: var(--success);
+    background: #fffcfc;
     border-radius: 50%;
     animation: pulse 2s infinite;
     flex-shrink: 0;
@@ -62,7 +63,7 @@ body {
 .brand-name {
     font-family: 'Syne', sans-serif;
     font-size: 1rem;
-    color: var(--text);
+    color: var(--kaer);
     letter-spacing: -0.01em;
 }
 .brand-name strong { color: var(--success); }
@@ -80,7 +81,7 @@ body {
     padding: 0.6rem 0.85rem;
     border-radius: 10px;
     font-size: 0.85rem;
-    color: var(--muted);
+    color: var(--text);
     text-decoration: none;
     transition: background 0.18s, color 0.18s;
     font-weight: 500;
@@ -88,7 +89,7 @@ body {
 .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
 .nav-item.active {
     background: rgba(0,229,160,0.1);
-    color: var(--success);
+    color: var(--text);
     border: 1px solid rgba(0,229,160,0.2);
 }
 .nav-item svg { flex-shrink: 0; }
@@ -116,7 +117,7 @@ body {
     font-size: 0.88rem;
     font-weight: 600;
     color: var(--text);
-    font-family: 'Syne', sans-serif;
+    font-family: 'Avenir', sans-serif;
 }
 .btn-logout {
     display: flex;
@@ -167,7 +168,7 @@ body {
     margin-bottom: 0.8rem;
 }
 h1 {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Avinir', sans-serif;
     font-size: 1.9rem;
     font-weight: 800;
     letter-spacing: -0.02em;
@@ -289,7 +290,7 @@ input::placeholder { color: #2a5e3a; }
     background: linear-gradient(135deg, var(--accent2), var(--accent));
     border: none;
     border-radius: 9px;
-    font-family: 'Syne', sans-serif;
+    font-family: 'Avinir', sans-serif;
     font-size: 0.88rem;
     font-weight: 700;
     color: #fff;
@@ -342,7 +343,7 @@ tbody td {
 tbody td:first-child { padding-left: 0; }
 
 .col-idx { color: var(--muted); font-size: 0.8rem; width: 36px; }
-.col-num  { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.9rem; }
+.col-num  { font-family: 'Avenir', sans-serif; font-weight: 700; font-size: 0.9rem; }
 .col-name { color: var(--text); }
 
 /* Badges */

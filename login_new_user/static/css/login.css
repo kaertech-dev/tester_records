@@ -5,8 +5,8 @@
     --bg:        #0b0f1a;
     --card:      #072511;
     --border:    #1e2d45;
-    --accent:    #00d4ff;
-    --accent2:   #0066ff;
+    --accent:    #b0b865;
+    --accent2:   #81ba8e;
     --success:   #00e5a0;
     --error:     #ff4d6d;
     --text:      #e8edf5;
@@ -16,7 +16,7 @@
 
 body {
     min-height: 100vh;
-    background: #25824a;
+    background: #0B6B53;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -98,7 +98,7 @@ body::after {
 }
 
 h1 {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 1.85rem;
     font-weight: 800;
     color: var(--text);
@@ -106,7 +106,7 @@ h1 {
     letter-spacing: -0.02em;
 }
 h1 span {
-    background: linear-gradient(120deg, var(--accent2), var(--accent));
+    background: #0B6B53;;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

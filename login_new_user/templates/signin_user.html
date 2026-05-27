@@ -20,6 +20,9 @@
         <a href="/admin/users" class="btn-admin" id="adminLink" style="display:none;">
           ⚙ Admin
         </a>
+        <a href="/admin/users" class="btn-admin" id="adminLink" style="display:none;">
+          ⚙ Admin
+        </a>
         <button class="btn-logout" id="logoutBtn" title="Sign out">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" stroke-width="2.2"
@@ -96,6 +99,7 @@
     .then(r => r.json())
     .then(d => { if (d.is_admin) document.getElementById('adminLink').style.display = 'inline-flex'; });
   const fields = ['operator_en','employee_name','date_hired','status','contact','process'];
+  const requiredFields = ['operator_en','employee_name','date_hired','status','process'];
 
   function showToast(msg, isError = false) {
     const t = document.getElementById('toast');
@@ -116,7 +120,7 @@
 
   function validate(data) {
     let ok = true;
-    fields.forEach(f => {
+    requiredFields.forEach(f => {
       if (!data[f] || !data[f].trim()) {
         document.getElementById(f).classList.add('error-field');
         document.getElementById('err_' + f).textContent = 'This field is required.';

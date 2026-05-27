@@ -22,7 +22,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
-
 def admin_required(f):
     """Return 403 if the logged-in user is not an admin."""
     @wraps(f)
@@ -49,7 +48,7 @@ def login_page():
 def index():
     return render_template('signin_user.html')
 
-
+# admin panel to manage users
 @app.route('/admin/users')
 @admin_required
 def manage_users_page():
@@ -58,7 +57,14 @@ def manage_users_page():
         session_user=session.get('employee_num', '')
     )
 
-
+# authorized users can see the list of operators
+@app.route('/users')
+@login_required
+def users_page():
+    return render_template(
+        'manage_users.html',
+        session_user=session.get('employee_num', '')
+    )
 # ── API: Login ────────────────────────────────────────────────────────────────
 
 @app.route('/api/login', methods=['POST'])
@@ -82,7 +88,6 @@ def api_login():
     except Exception as e:
         return jsonify({'success': False, 'message': f'Database error: {str(e)}'}), 500
 
-
 # ── API: Logout ───────────────────────────────────────────────────────────────
 
 @app.route('/api/logout', methods=['POST'])
@@ -90,14 +95,12 @@ def api_logout():
     session.clear()
     return jsonify({'success': True, 'message': 'Logged out.'})
 
-
 # ── API: Register new operator ────────────────────────────────────────────────
 
 @app.route('/api/signin', methods=['POST'])
 @login_required
 def signin_new_user():
     data = request.get_json()
-
     operator_en   = data.get('operator_en', '').strip()
     employee_name = data.get('employee_name', '').strip()
     date_hired    = data.get('date_hired', '').strip()
@@ -105,7 +108,7 @@ def signin_new_user():
     contact       = data.get('contact', '').strip()
     process       = data.get('process', '').strip()
 
-    if not all([operator_en, employee_name, date_hired, status, contact, process]):
+    if not all([operator_en, employee_name, date_hired, status, process]):
         return jsonify({'success': False, 'message': 'All fields are required.'}), 400
 
     success = db.signin_new_user(operator_en, employee_name,
@@ -114,9 +117,7 @@ def signin_new_user():
         return jsonify({'success': True, 'message': 'New operator registered successfully!'})
     return jsonify({'success': False, 'message': 'Database error. Please try again.'}), 500
 
-
 # ── API: Admin — list users ───────────────────────────────────────────────────
-
 @app.route('/api/admin/users', methods=['GET'])
 @admin_required
 def api_list_users():
@@ -126,9 +127,25 @@ def api_list_users():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
+# ── API: Admin — list of operators ───────────────────────────────────────────
+@app.route('/api/admin/operators')
+@login_required
+def api_list_operators():
+    try:
+        operators = db.show_all_user()
+        return jsonify({'operators': operators})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/list_operators')
+@login_required
+def list_operators():
+    return render_template(
+        'list_operators.html',
+        session_user=session.get('employee_num', '')
+    )
 
 # ── API: Admin — add user ─────────────────────────────────────────────────────
-
 @app.route('/api/admin/users', methods=['POST'])
 @admin_required
 def api_add_user():
@@ -165,7 +182,7 @@ def api_delete_user(employee_num):
 @login_required
 def api_me():
     emp = session.get('employee_num', '')
-    return jsonify({'employee_num': emp, 'is_admin': emp in ADMINS})
+    return jsonify({'employee_num': emp, 'is_admin': emp in ADMINS}) 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5002, use_reloader=False)

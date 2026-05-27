@@ -138,7 +138,7 @@ body::after {
 }
 
 h1 {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Avenir', sans-serif;
     font-size: 1.85rem;
     font-weight: 800;
     color: var(--text);
