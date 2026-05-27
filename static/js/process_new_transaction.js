@@ -57,8 +57,8 @@
 // });
 // Show logged-in user name passed via session (optional)
 document.getElementById('btn-logout')?.addEventListener('click', async () => {
-    await fetch('/api/process-logout', { method: 'POST' });
-    window.location.href = '/process-login';
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/';
 });
 
 // ── Asset ID Look Up ──────────────────────────────────────────────────────────

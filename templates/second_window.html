@@ -107,7 +107,7 @@
         </main>
 
         <footer class="footer">
-            <a href="{{ url_for('index') }}" id="exit-btn" type="button" class="exit-btn">EXIT</a>
+            <a href="{{ url_for('index') }}" id="exit-btn" type="button" class="exit-btn">Sign Out</a>
         </footer>
     </div>
     <div id="download-overlay">
@@ -311,6 +311,9 @@
                     </svg>
                     Preview Data
                 </button>
+                <div class="stn-ai-preview-action">
+                    <input type="ai-api-input" id="stn-api-key" class="dl-api-inputs" placeholder="Enter AI API key for data summary (optional)"> 
+                </div>
             </div>
         
             <!-- ── Preview panel (hidden until data loads) ── -->
@@ -318,6 +321,10 @@
         
                 <!-- Footer -->
                 <div class="dl-footer">
+                    <div id="stn-record-count" class="dl-ai-prompt">
+                        <input id="stn-prompt-input" type="input" class="dl-prompt-inputs" placeholder="Enter your prompt for AI data summary (optional)">
+                        <button id="stn-prompt-btn" type="button" class="dl-prompt-btn">Summarize Data</button>
+                    </div>
                     <button id="stn-cancel-btn" type="button" class="dl-btn-cancel">Cancel</button>
                     <button id="stn-dl-btn" type="button" class="dl-btn-download" disabled>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -335,6 +342,10 @@
     </div>
 
     <script>
+        document.getElementById('exit-btn')?.addEventListener('click', async () => {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/';
+        });
         const dot = document.getElementById('cursor-dot');
         const ring = document.getElementById('cursor-ring');
         const colors = ['#22c55e', '#4ade80', '#86efac', '#60a5fa', '#93c5fd', '#fff'];

@@ -106,3 +106,84 @@
     position: relative;
     overflow: hidden;
 }
+
+.login-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+    box-sizing: border-box;
+}
+
+.login-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2.8rem 2.6rem;
+    box-shadow: 0 0 60px rgba(0,102,255,0.08), 0 24px 64px rgba(0,0,0,0.5);
+    animation: fadeSlideIn 0.5s ease both;
+}
+
+.logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 2rem;
+}
+
+.logo-main { display: block; font-size: 16px; font-weight: 700; color: #fff; }
+.logo-sub  { display: block; font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+.field-group { margin-bottom: 1rem; }
+.field-group label {
+    display: block;
+    font-size: 13px;
+    color: rgba(255,255,255,0.65);
+    margin-bottom: 6px;
+}
+.field-group input {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s;
+}
+.field-group input:focus { border-color: #4ade80; }
+.field-group input::placeholder { color: rgba(255,255,255,0.3); }
+
+.btn-login {
+    width: 100%;
+    padding: 11px;
+    background: linear-gradient(135deg, #22c55e, #15803d);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: opacity .2s;
+}
+.btn-login:hover   { opacity: 0.88; }
+.btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.login-status { font-size: 13px; min-height: 20px; margin-top: 10px; text-align: center; }
+.login-status.ok  { color: #4ade80; }
+.login-status.err { color: #f87171; }
+
+.login-hint {
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
+    text-align: center;
+    margin-top: 1.25rem;
+}

@@ -8,6 +8,7 @@ import io
 import os
 from backend.download_data import download_bp
 from backend.download_station_data import station_bp
+import requests as http_requests
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -24,17 +25,78 @@ process_records  = ProcessRecords()
 
 @app.route('/')
 def index():
+    # If already logged in, send straight to the right window
+    if session.get('system_type') == 'te':
+        return redirect(url_for('first_window'))
+    if session.get('system_type') == 'pe':
+        return redirect(url_for('second_window'))
     return render_template('selection_window.html')
 
 # this route directed to tester side
 @app.route('/first-window')
 def first_window():
+    if session.get('system_type') != 'te':
+        return redirect(url_for('index'))
     return render_template('first_window.html')
 
 # this route directed to process side
 @app.route('/second-window')
 def second_window():
+    if session.get('system_type') != 'pe':
+        return redirect(url_for('index'))
     return render_template('second_window.html')
+
+# ─────────────────────────────────────────────
+# Unified Login / Logout
+# ─────────────────────────────────────────────
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    payload  = request.get_json() or {}
+    group    = (payload.get('group') or '').strip()
+    password = (payload.get('password') or '').strip()
+
+    if not group or not password:
+        return jsonify({'success': False, 'message': 'Group and password are required.'}), 400
+
+    # Try TE first
+    te_user = user_auth.authenticate(group, password)
+    if te_user:
+        session['system_type'] = 'te'
+        session['te_user'] = {
+            'name':         te_user.get('name', group),
+            'employee_num': te_user.get('employee_num'),
+            'group':        group,
+        }
+        session.pop('pe_user', None)
+        return jsonify({'success': True, 'redirect': url_for('first_window')})
+
+    # Try PE
+    try:
+        from backend.orm_models import User as OrmUser
+        with get_pe_session() as db:
+            pe_row = db.query(OrmUser).filter(
+                OrmUser.group == group,
+                OrmUser.badge == password
+            ).first()
+            if pe_row:
+                session['system_type'] = 'pe'
+                session['pe_user'] = {
+                    'name':         pe_row.name,
+                    'employee_num': pe_row.employee_num,
+                    'group':        pe_row.group,
+                }
+                session.pop('te_user', None)
+                return jsonify({'success': True, 'redirect': url_for('second_window')})
+    except Exception as e:
+        print(f'[api_login] PE lookup error: {e}')
+
+    return jsonify({'success': False, 'message': 'Invalid credentials.'}), 401
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    session.clear()
+    return jsonify({'success': True, 'redirect': url_for('index')})
 
 # ─────────────────────────────────────────────
 # New Transaction   - te side
@@ -345,6 +407,51 @@ def process_submit_data():
         return jsonify({'success': True, 'message': 'Transaction saved successfully.'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai-summarize', methods=['POST'])
+def ai_summarize():
+    body    = request.get_json(force=True) or {}
+    api_key = (body.get('api_key') or '').strip()
+    prompt  = (body.get('prompt')  or '').strip()
+
+    if not api_key:
+        return jsonify({'error': 'API key is required.'}), 400
+    if not prompt:
+        return jsonify({'error': 'Prompt is required.'}), 400
+
+    # Safety: truncate if prompt is extremely large (~180k chars ≈ ~50k tokens)
+    MAX_CHARS = 180_000
+    if len(prompt) > MAX_CHARS:
+        prompt = prompt[:MAX_CHARS] + '\n\n[... data truncated due to size ...]'
+
+    try:
+        res = http_requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'Content-Type':      'application/json',
+                'x-api-key':         api_key,
+                'anthropic-version': '2023-06-01',
+            },
+            json={
+                'model':      'claude-sonnet-4-20250514',
+                'max_tokens': 2048,
+                'messages':   [{'role': 'user', 'content': prompt}],
+            },
+            timeout=120,
+        )
+        data = res.json()
+
+        # Bubble up Anthropic's own error message clearly
+        if not res.ok:
+            err_msg = data.get('error', {}).get('message', res.text)
+            return jsonify({'error': err_msg}), res.status_code
+
+        return jsonify(data), res.status_code
+
+    except http_requests.exceptions.Timeout:
+        return jsonify({'error': 'Request timed out — try a smaller date range.'}), 504
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
     
 if __name__ == '__main__':
     try:

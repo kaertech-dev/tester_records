@@ -1,21 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <title>TRACEABILITY SYSTEM</title>
-
+    <title>Sign In — Traceability System</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
-    <link rel="stylesheet" href="/static/css/selection_window.css"><!-- {{ url_for('static', filename='css/download_data.css') }} -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/selection_window.css') }}">
 </head>
 <body class="body">
     <div class="bg-grid"></div>
-    <div class="container">
-        <header class="header">
+    <div class="login-container">
+        <div class="login-card">
             <div class="logo-wrap">
                 <div class="logo-icon">
-                    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
                         <rect width="36" height="36" rx="10" fill="url(#logoGrad)"/>
                         <path d="M10 12h16M10 18h10M10 24h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
                         <circle cx="27" cy="24" r="4" fill="white" fill-opacity="0.9"/>
@@ -29,34 +29,73 @@
                     </svg>
                 </div>
                 <div class="logo-text">
-                    <span class="logo-main">Selection Window</span>
-                    <span class="logo-sub">Traceability Management System</span>
+                    <span class="logo-main">Traceability System</span>
+                    <span class="logo-sub">Sign in to continue</span>
                 </div>
             </div>
-<!--             
-            <button id="dl-open-btn" type="button" class="dl-open-btn">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Download Records
-            </button> -->
 
-        </header>
-
-        <main class="main-content">
-            <p class="welcome-text">select your traceability option:</p>
-            <div class="action-grid">
-                <a href="{{ url_for('first_window') }}" class="action-card new-card">TEST</a>
-                <a href="{{ url_for('second_window') }}" class="action-card close-card">PROCESS / EQUIPMENT</a>
+            <div class="field-group">
+                <label for="login-group">Group / Username</label>
+                <input type="text" id="login-group" placeholder="e.g. TE-GROUP1" autocomplete="off">
             </div>
-        </main>
+            <div class="field-group">
+                <label for="login-badge">Badge / Password</label>
+                <input type="password" id="login-badge" placeholder="••••••••">
+            </div>
+
+            <button id="login-btn" class="btn-login">Sign In</button>
+            <div id="login-status" class="login-status"></div>
+
+            <p class="login-hint">System is auto-detected from your credentials.</p>
+        </div>
     </div>
 
-    <footer>
-        <!-- <button class="btn btn-secondary" id="back-btn" onclick="window.location.href='{{ url_for('index') }}'">Exit</button> -->
-    </footer>
+    <script>
+        const groupIn  = document.getElementById('login-group');
+        const badgeIn  = document.getElementById('login-badge');
+        const loginBtn = document.getElementById('login-btn');
+        const status   = document.getElementById('login-status');
+
+        function setStatus(msg, ok) {
+            status.textContent = msg;
+            status.className = 'login-status ' + (ok ? 'ok' : 'err');
+        }
+
+        async function doLogin() {
+            const group    = groupIn.value.trim();
+            const password = badgeIn.value.trim();
+            if (!group || !password) { setStatus('Group and password are required.', false); return; }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Signing in…';
+            status.textContent = '';
+
+            try {
+                const res  = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setStatus('Authenticated! Redirecting…', true);
+                    window.location.href = data.redirect;
+                } else {
+                    setStatus(data.message || 'Invalid credentials.', false);
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Sign In';
+                }
+            } catch (e) {
+                setStatus('Network error. Please try again.', false);
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In';
+            }
+        }
+
+        loginBtn.addEventListener('click', doLogin);
+        [groupIn, badgeIn].forEach(el =>
+            el.addEventListener('keydown', e => e.key === 'Enter' && doLogin())
+        );
+    </script>
 </body>
+</html>

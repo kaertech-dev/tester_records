@@ -5,12 +5,14 @@ Flask Blueprint — Station Data Downloader
   GET  /api/stations-list          → returns all unique stations across active schemas
   POST /api/preview-station-data   → returns JSON preview (summary + first N rows per table)
   POST /api/download-station-data  → streams Excel for chosen station + date range
+                                     (includes optional "AI Analysis" sheet if ai_summary sent)
 """
 
 from flask import Blueprint, jsonify, request, send_file
 from mysql.connector import pooling
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
 import threading
 import io
@@ -30,8 +32,8 @@ MAX_WORKERS = 8
 CHUNK_SIZE  = 5000
 # ──────────────────────────────────────────────────────────────────────────────
 
-_pool      = None
-_pool_lock = threading.Lock()
+_pool       = None
+_pool_lock  = threading.Lock()
 _print_lock = threading.Lock()
 
 def tprint(*args, **kwargs):
@@ -97,10 +99,10 @@ def extract_station(table_name):
     if len(parts) < 2:
         return None
     station = parts[1]
-    # Exclude archived tables ending with _old
     if station.endswith(('_old', '_old2', '_copy', '_2', 'old', '_tochange', 'progtest(old)')):
         return None
     return station
+
 
 def get_tables_for_station(pool, schemas, station):
     """Return (schema, table) pairs where station matches exactly, excluding _old tables."""
@@ -150,7 +152,6 @@ def fetch_table_data_filtered(pool, schema, table, date_from, date_to):
                 ORDER BY `{dt_col}` DESC
             """, (date_from, date_to))
         else:
-            # No datetime column — return all rows
             cursor.execute(f"SELECT * FROM `{schema}`.`{table}`")
 
         columns = [desc[0] for desc in cursor.description]
@@ -187,7 +188,6 @@ def resolve_date_range(mode, params):
     elif mode == 'week':
         year = int(params['year'])
         week = int(params['week'])
-        # ISO week: Monday is day 1
         monday = datetime.strptime(f'{year}-W{week:02d}-1', '%G-W%V-%u')
         return monday, monday + timedelta(weeks=1)
 
@@ -195,7 +195,6 @@ def resolve_date_range(mode, params):
         year  = int(params['year'])
         month = int(params['month'])
         start = datetime(year, month, 1)
-        # First day of next month
         if month == 12:
             end = datetime(year + 1, 1, 1)
         else:
@@ -231,10 +230,15 @@ def _style_section_row(ws, row_num, col_count):
         cell.alignment = Alignment(horizontal="left", vertical="center")
 
 
-def build_station_excel(tables_data, station, date_from, date_to):
+def build_station_excel(tables_data, station, date_from, date_to,
+                        ai_summary=None, ai_prompt=None):
+    """
+    Build the Excel workbook.
+    If ai_summary is provided, an extra 'AI Analysis' sheet is appended.
+    """
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title        = f"{station[:28]}"   # sheet name max 31 chars
+    ws.title        = f"{station[:28]}"
     ws.freeze_panes = "A2"
 
     master_headers = ["Schema", "Table", "Row #"]
@@ -300,10 +304,164 @@ def build_station_excel(tables_data, station, date_from, date_to):
                 pass
         ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 50)
 
+    # ── Optional AI Analysis sheet ────────────────────────────────────────
+    if ai_summary:
+        _add_ai_sheet(wb, ai_prompt or '', ai_summary)
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
     return buf
+
+
+# ── AI Analysis sheet builder ─────────────────────────────────────────────────
+
+def _add_ai_sheet(wb, prompt: str, summary: str) -> None:
+    """Append a formatted 'AI Analysis' sheet to the workbook."""
+
+    ws = wb.create_sheet(title="AI Analysis")
+
+    # ── Palette
+    PURPLE_DARK  = "2D1B4E"
+    PURPLE_MID   = "6B3FA0"
+    LIGHT_BG     = "F5F0FF"
+    PROMPT_BG    = "EDE9FF"
+    BORDER_COLOR = "C084FC"
+    WHITE        = "FFFFFF"
+
+    def _thin_border(left=True, right=True, top=False, bottom=False):
+        s = Side(style="thin", color=BORDER_COLOR)
+        n = Side(style=None)
+        return Border(
+            left=s if left else n,
+            right=s if right else n,
+            top=s if top else n,
+            bottom=s if bottom else n,
+        )
+
+    # ── Column widths
+    ws.column_dimensions["A"].width = 16
+    ws.column_dimensions["B"].width = 95
+
+    # ── Row 1: Title
+    ws.merge_cells("A1:B1")
+    title = ws["A1"]
+    title.value     = "AI Analysis  —  Powered by Claude"
+    title.font      = Font(name="Arial", bold=True, size=14, color=WHITE)
+    title.fill      = PatternFill("solid", fgColor=PURPLE_DARK)
+    title.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 34
+
+    # ── Row 2: Prompt label + value
+    ws["A2"].value     = "Prompt"
+    ws["A2"].font      = Font(name="Arial", bold=True, size=10, color=WHITE)
+    ws["A2"].fill      = PatternFill("solid", fgColor=PURPLE_MID)
+    ws["A2"].alignment = Alignment(vertical="top", wrap_text=True)
+    ws["A2"].border    = _thin_border(top=True, bottom=True)
+
+    prompt_text        = prompt or "(no prompt provided)"
+    ws["B2"].value     = prompt_text
+    ws["B2"].font      = Font(name="Arial", size=10, italic=True, color="4B1D8C")
+    ws["B2"].fill      = PatternFill("solid", fgColor=PROMPT_BG)
+    ws["B2"].alignment = Alignment(vertical="top", wrap_text=True)
+    ws["B2"].border    = _thin_border(top=True, bottom=True)
+    prompt_lines       = max(1, len(prompt_text) // 90 + 1)
+    ws.row_dimensions[2].height = max(20, min(prompt_lines * 15, 80))
+
+    # ── Row 3: spacer
+    ws.row_dimensions[3].height = 6
+
+    # ── Row 4: Section header
+    ws.merge_cells("A4:B4")
+    sec           = ws["A4"]
+    sec.value     = "Analysis Results"
+    sec.font      = Font(name="Arial", bold=True, size=11, color=WHITE)
+    sec.fill      = PatternFill("solid", fgColor=PURPLE_MID)
+    sec.alignment = Alignment(horizontal="left", vertical="center",
+                              indent=1)
+    ws.row_dimensions[4].height = 22
+
+    # ── Rows 5+: AI text, line by line
+    current_row = 5
+    for line in summary.splitlines():
+        stripped = line.strip()
+
+        # Empty line → small spacer row
+        if not stripped:
+            ws.row_dimensions[current_row].height = 7
+            ws.append(["", ""])
+            current_row += 1
+            continue
+
+        # Detect markdown headings
+        if stripped.startswith("### "):
+            text, level = stripped[4:], 3
+        elif stripped.startswith("## "):
+            text, level = stripped[3:], 2
+        elif stripped.startswith("# "):
+            text, level = stripped[2:], 1
+        else:
+            text, level = stripped, 0
+
+        # Strip remaining markdown bold/italic/code markers
+        text = text.replace("**", "").replace("*", "").replace("`", "")
+
+        # Bullet indicator
+        is_bullet = text.startswith("- ") or text.startswith("• ")
+        if is_bullet:
+            text = "  •  " + text[2:]
+
+        # Left label column (blank, just coloured)
+        left_cell           = ws.cell(row=current_row, column=1, value="")
+        left_cell.fill      = PatternFill("solid", fgColor="EEE8FF")
+        left_cell.border    = _thin_border(left=True, right=False)
+
+        # Content column
+        cell           = ws.cell(row=current_row, column=2, value=text)
+        cell.alignment = Alignment(vertical="top", wrap_text=True, indent=1)
+        cell.border    = _thin_border(left=False, right=True)
+
+        if level > 0:
+            heading_styles = {
+                1: (13, PURPLE_DARK, "E8E0FF"),
+                2: (11, PURPLE_MID,  "EDE9FF"),
+                3: (10, "5B21B6",    "F3EFFF"),
+            }
+            sz, fc, bg = heading_styles[level]
+            cell.font      = Font(name="Arial", bold=True, size=sz, color=fc)
+            cell.fill      = PatternFill("solid", fgColor=bg)
+            left_cell.fill = PatternFill("solid", fgColor=bg)
+            ws.row_dimensions[current_row].height = 22
+        else:
+            cell.font = Font(name="Arial", size=10, color="1E1040")
+            cell.fill = PatternFill("solid", fgColor=LIGHT_BG)
+            chars_per_line = 115
+            n_lines        = max(1, len(text) // chars_per_line + text.count('\n'))
+            ws.row_dimensions[current_row].height = max(15, min(n_lines * 15, 120))
+
+        current_row += 1
+
+    # ── Close bottom border on last content row
+    last = current_row - 1
+    for col in [1, 2]:
+        existing       = ws.cell(row=last, column=col).border
+        ws.cell(row=last, column=col).border = Border(
+            left=existing.left,
+            right=existing.right,
+            top=existing.top,
+            bottom=Side(style="thin", color=BORDER_COLOR),
+        )
+
+    # ── Generated timestamp row
+    ws.append(["", ""])
+    current_row += 1
+    ts_cell           = ws.cell(row=current_row, column=1,
+                                value=f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    ws.merge_cells(f"A{current_row}:B{current_row}")
+    ts_cell.font      = Font(name="Arial", size=8, italic=True, color="888888")
+    ts_cell.alignment = Alignment(horizontal="right")
+
+    ws.freeze_panes = "A2"
 
 
 # ── Flask routes ──────────────────────────────────────────────────────────────
@@ -312,9 +470,9 @@ def build_station_excel(tables_data, station, date_from, date_to):
 def stations_list():
     """Return sorted list of all unique station names across active schemas."""
     try:
-        pool    = get_pool()
-        schemas = get_active_schemas(pool)
-        tables  = get_all_tables_for_schemas(pool, schemas)
+        pool     = get_pool()
+        schemas  = get_active_schemas(pool)
+        tables   = get_all_tables_for_schemas(pool, schemas)
         stations = sorted(set(
             extract_station(table)
             for _, table in tables
@@ -336,7 +494,7 @@ def preview_station_data():
         tables: [ { schema, table, row_count, columns, rows (first 100) } ]
     }
     """
-    PREVIEW_LIMIT = 100   # rows per table shown in preview
+    PREVIEW_LIMIT = 100
 
     body    = request.get_json(force=True) or {}
     station = (body.get('station') or '').strip()
@@ -358,7 +516,6 @@ def preview_station_data():
         if not matches:
             return jsonify({'error': f'No tables found for station "{station}"'}), 404
 
-        # Parallel fetch (full data — preview just slices client-side)
         results = {}
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {
@@ -383,11 +540,10 @@ def preview_station_data():
             columns, rows = results[(schema, table)]
             total_rows += len(rows)
 
-            # Serialize rows — convert non-JSON-safe types (datetime, date, Decimal)
             def serialize(v):
                 if v is None:
                     return None
-                if isinstance(v, (datetime,)):
+                if isinstance(v, datetime):
                     return v.strftime('%Y-%m-%d %H:%M:%S')
                 try:
                     from decimal import Decimal
@@ -430,11 +586,17 @@ def preview_station_data():
 def download_station_data():
     """
     Body (JSON):
-      { station, mode, date?, year?, week?, month?, date_from?, date_to? }
+      {
+        station, mode, date?, year?, week?, month?, date_from?, date_to?,
+        ai_summary?,   ← optional: AI analysis text to embed as extra sheet
+        ai_prompt?     ← optional: the prompt the user typed
+      }
     """
     body    = request.get_json(force=True) or {}
-    station = (body.get('station') or '').strip()
-    mode    = (body.get('mode')    or 'today').strip()
+    station = (body.get('station')    or '').strip()
+    mode    = (body.get('mode')       or 'today').strip()
+    ai_summary = (body.get('ai_summary') or '').strip()   # ← NEW
+    ai_prompt  = (body.get('ai_prompt')  or '').strip()   # ← NEW
 
     if not station:
         return jsonify({'error': 'station is required'}), 400
@@ -452,7 +614,6 @@ def download_station_data():
         if not matches:
             return jsonify({'error': f'No tables found for station "{station}"'}), 404
 
-        # Parallel fetch
         results = {}
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {
@@ -479,7 +640,12 @@ def download_station_data():
         if total_rows == 0:
             return jsonify({'error': 'No data found for the selected station and date range.'}), 404
 
-        buf = build_station_excel(tables_data, station, date_from, date_to)
+        # ── Build Excel (with optional AI sheet) ──────────────────────────
+        buf = build_station_excel(
+            tables_data, station, date_from, date_to,
+            ai_summary=ai_summary or None,
+            ai_prompt=ai_prompt   or None,
+        )
 
         filename = (
             f"{station}_{date_from.strftime('%Y%m%d')}"

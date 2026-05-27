@@ -1,6 +1,7 @@
 Flask
 SQLAlchemy
 pymysql
+mysql
 python-dotenv
 gunicorn
 openpyxl

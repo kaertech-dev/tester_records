@@ -102,7 +102,7 @@
         </main>
 
         <footer class="footer">
-            <a href="{{ url_for('index') }}" id="exit-btn" type="button" class="exit-btn">EXIT</a>
+            <a href="{{ url_for('index') }}" id="exit-btn" type="button" class="exit-btn">Sign Out</a>
         </footer>
     </div>
     <div id="download-overlay">
@@ -254,5 +254,11 @@
     }
     </script>
     <script src="{{ url_for('static', filename='js/download_data.js') }}"></script>
+    <script>
+        document.getElementById('exit-btn').addEventListener('click', async () => {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/';
+        });
+    </script>
 </body>
 </html>
