@@ -80,33 +80,11 @@
                     </div>
                     <div class="card-arrow">→</div>
                 </a>
-
-                <!-- <a href="{{ url_for('process_close_transaction') }}" class="action-card close-card">
-                    <div class="card-icon">
-                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="20" cy="20" r="20" fill="url(#closeGrad)" />
-                            <path d="M13 20l5 5 9-10" stroke="white" stroke-width="3" stroke-linecap="round"
-                                stroke-linejoin="round" />
-                            <defs>
-                                <linearGradient id="closeGrad" x1="0" y1="0" x2="40" y2="40"
-                                    gradientUnits="userSpaceOnUse">
-                                    <stop stop-color="#60a5fa" />
-                                    <stop offset="1" stop-color="#1d4ed8" />
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                    </div>
-                    <div class="card-body">
-                        <h2 class="card-title">Close Transaction</h2>
-                        <p class="card-desc">Review open transactions, confirm details, and finalize records to the
-                            tester database.</p>
-                    </div>
-                    <div class="card-arrow">→</div>
-                </a> -->
             </div>
         </main>
 
         <footer class="footer">
+            <a href="{{ url_for('change_password_page') }}" class="exit-btn" style="margin-right:auto;">Change Password</a>
             <a href="{{ url_for('index') }}" id="exit-btn" type="button" class="exit-btn">Sign Out</a>
         </footer>
     </div>

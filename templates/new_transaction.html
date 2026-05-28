@@ -86,13 +86,13 @@
                             <div class="field-group" id="group-pic">
                                 <label for="pic-email">Person in Charge</label>
                                 <div class="pic-auth-row">
-                                    <input type="text" id="pic-email" placeholder="Group / username" autocomplete="off" required>
-                                    <input type="password" id="pic-password" placeholder="Badge / password" autocomplete="off" required>
+                                    <input type="text" id="pic-email" placeholder="Group / username" autocomplete="off" readonly required>
+                                    <input type="password" id="pic-password" placeholder="Badge / password" autocomplete="off" readonly required>
                                     <button type="button" id="btn-auth-pic" class="btn-auth">Authorize</button>
                                 </div>
                                 <div id="pic-status" class="pic-status hidden"></div>
                                 <!-- hidden field carries authorized employee_num to form POST -->
-                                <input type="hidden" id="person_in_charge" name="person_in_charge" required>
+                                <input type="hidden" id="person_in_charge" name="person_in_charge" readonly required>
                             </div>
 
                             <div class="field-group" id="group-fixture">
@@ -139,11 +139,31 @@
 
     <script src="{{ url_for('static', filename='js/new_transaction.js') }}"></script>
     <script>
-        const picEmailInput = document.getElementById('pic-email');
-        const picPasswordInput = document.getElementById('pic-password');
-        const btnAuthPic = document.getElementById('btn-auth-pic');
-        const picStatus = document.getElementById('pic-status');
+        const picEmailInput      = document.getElementById('pic-email');
+        const picPasswordInput   = document.getElementById('pic-password');
+        const btnAuthPic         = document.getElementById('btn-auth-pic');
+        const picStatus          = document.getElementById('pic-status');
         const personInChargeInput = document.getElementById('person_in_charge');
+
+        // ── Auto-fill from session if already logged in ──────────────────
+        const sessionUser = {
+            name:         "{{ te_user.get('name', '') | e }}",
+            employee_num: "{{ te_user.get('employee_num', '') | e }}",
+            group:        "{{ te_user.get('group', '') | e }}"
+        };
+
+        if (sessionUser.employee_num) {
+            picEmailInput.value        = sessionUser.group;
+            picPasswordInput.value     = '••••••••';   // visual placeholder only
+            picPasswordInput.disabled  = true;
+            btnAuthPic.disabled        = true;
+            personInChargeInput.value  = sessionUser.employee_num;
+
+            picStatus.textContent = `Authorized: ${sessionUser.name || sessionUser.group}`;
+            picStatus.classList.remove('hidden');
+            picStatus.style.color = '#16a34a';
+        }
+        // ─────────────────────────────────────────────────────────────────
 
         function setPicStatus(message, type) {
             picStatus.textContent = message;
@@ -152,8 +172,8 @@
         }
 
         async function authenticatePersonInCharge() {
-            const group = picEmailInput.value.trim();
-            const badge = picPasswordInput.value.trim();
+            const group  = picEmailInput.value.trim();
+            const badge  = picPasswordInput.value.trim();
 
             if (!group || !badge) {
                 setPicStatus('Group and badge are required.', 'error');
@@ -175,14 +195,7 @@
                     return;
                 }
 
-                const employeeNum = result.employee_num;
-                if (!employeeNum) {
-                    setPicStatus('Authorized, but employee number is missing.', 'error');
-                    personInChargeInput.value = '';
-                    return;
-                }
-
-                personInChargeInput.value = employeeNum;
+                personInChargeInput.value = result.employee_num || '';
                 setPicStatus(`Authorized: ${result.name || group}`, 'success');
             } catch (error) {
                 console.error('Auth error', error);
