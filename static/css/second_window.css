@@ -1,47 +1,30 @@
 * {
-    cursor: none;
-}
-
-* {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
-.header {
-    margin-bottom: 40px;
-}
-
-.logo-wrap{
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-.logo-icon {
-    width: 50px;
-    height: 50px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.logo-text {
-    display: flex;
-    flex-direction: column;
-}
-
-.page-header {
-    margin-bottom: 40px;
-}
-/* body */
 body {
     font-family: 'Inter', sans-serif;
-    background: linear-gradient(135deg, #11894f 0%, #0f3460 100%);
+    background: linear-gradient(135deg, #126850 0%, #606060 100%);
     color: #e0e0e0;
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
 }
+
+.bg-grid {
+    position: fixed;
+    inset: 0;
+    background-image: 
+        linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size: 50px 50px;
+    pointer-events: none;
+    z-index: 1;
+}
+
 .container {
     display: flex;
     flex-direction: column;
@@ -53,7 +36,42 @@ body {
     position: relative;
     z-index: 2;
 }
-/* main content */
+
+.header {
+    margin-bottom: 40px;
+}
+
+.logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.logo-icon {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.logo-main {
+    font-size: 24px;
+    font-weight: 700;
+    color: #22c55e;
+}
+
+.logo-sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
 .main-content {
     flex: 1;
     display: flex;
@@ -61,6 +79,12 @@ body {
     justify-content: center;
     align-items: center;
     gap: 40px;
+}
+
+.welcome-text {
+    font-size: 18px;
+    color: #cbd5e1;
+    font-weight: 500;
 }
 
 .action-grid {
@@ -71,23 +95,6 @@ body {
     max-width: 700px;
 }
 
-/* footer */
-.footer {
-    display: flex;
-    justify-content: center;
-    margin-top: 40px;
-}
-.exit-btn {
-    padding: 10px 24px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.05);
-    color: #cbd5e1;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
 .action-card {
     display: flex;
     align-items: center;
@@ -103,21 +110,31 @@ body {
     position: relative;
     overflow: hidden;
 }
+
 .action-card::before {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.1) 100%);
+    background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.1) 100%);
     opacity: 0;
     transition: opacity 0.3s ease;
+}
+
+.action-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
 }
 
 .action-card:hover::before {
     opacity: 1;
 }
-.new-card {
-    border-top: 2px solid rgba(74, 222, 128, 0.3);
+
+.action-card:active {
+    transform: translateY(-2px);
 }
+
 .card-icon {
     flex-shrink: 0;
     width: 56px;
@@ -125,4 +142,157 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.card-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 6px;
+}
+
+.card-desc {
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.4;
+}
+
+.card-arrow {
+    font-size: 20px;
+    color: #cbd5e1;
+    transition: transform 0.3s ease;
+}
+
+.action-card:hover .card-arrow {
+    transform: translateX(4px);
+}
+
+.new-card {
+    border-top: 2px solid rgba(74, 222, 128, 0.3);
+}
+
+.new-card:hover {
+    border-color: rgba(74, 222, 128, 0.5);
+    background: rgba(74, 222, 128, 0.05);
+}
+
+.close-card {
+    border-top: 2px solid rgba(96, 165, 250, 0.3);
+}
+
+.close-card:hover {
+    border-color: rgba(96, 165, 250, 0.5);
+    background: rgba(96, 165, 250, 0.05);
+}
+
+.footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 40px;
+}
+
+.exit-btn {
+    padding: 10px 24px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.exit-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.exit-btn:active {
+    transform: scale(0.98);
+}
+
+.sparkle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: sparkle 1s ease-out forwards;
+}
+
+* { cursor: none; }
+
+#cursor-dot {
+    position: fixed;
+    width: 14px;
+    height: 14px;
+    background: #22c55e;
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px #22c55e, 0 0 20px rgba(34,197,94,0.4);
+    z-index: 9999;
+    transition: background 0.2s ease;
+}
+
+#cursor-ring {
+    position: fixed;
+    width: 34px;
+    height: 34px;
+    border: 2px solid rgba(34,197,94,0.6);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: width 0.2s ease, height 0.2s ease, border-color 0.2s ease;
+    z-index: 9998;
+}
+
+.spark {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    animation: spark-fade 0.7s ease-out forwards;
+    z-index: 9997;
+}
+
+@keyframes spark-fade {
+    0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.2); }
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 20px 16px;
+    }
+
+    .action-grid {
+        grid-template-columns: 1fr;
+        max-width: 100%;
+    }
+
+    .action-card {
+        padding: 20px;
+        gap: 16px;
+    }
+
+    .card-icon {
+        width: 48px;
+        height: 48px;
+    }
+
+    .card-title {
+        font-size: 14px;
+    }
+
+    .card-desc {
+        font-size: 12px;
+    }
 }
