@@ -1,8 +1,7 @@
-Flask
-SQLAlchemy
-pymysql
-mysql
-python-dotenv
-gunicorn
-openpyxl
-Pillow
+Flask==3.1.3
+SQLAlchemy==2.0.45
+pymysql==1.1.2
+mysql==9.5.0
+python-dotenv==1.2.1
+openpyxl==3.1.5
+Pillow==12.0.0
