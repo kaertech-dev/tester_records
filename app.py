@@ -126,8 +126,9 @@ def new_transaction():
         products = active_projects.get_active_products()
     except Exception:
         products = []
-
-    return render_template('new_transaction.html', products=products)
+    # Pass the logged-in user to the template
+    te_user = session.get('te_user', {})
+    return render_template('new_transaction.html', products=products, te_user=te_user)
 
 # ─────────────────────────────────────────────
 # Close Transaction
@@ -178,6 +179,55 @@ def auth_user():
         })
     return jsonify({'success': False, 'message': 'Invalid credentials.'}), 401
 
+# ─────────────────────────────────────────────
+# Change Password
+# ─────────────────────────────────────────────
+
+@app.route('/change-password')
+def change_password_page():
+    te_user = session.get('te_user')
+    pe_user = session.get('pe_user')
+    if not te_user and not pe_user:
+        return redirect(url_for('index'))
+    current_user = te_user or pe_user
+    system = 'te' if te_user else 'pe'
+    return render_template('change_password.html', current_user=current_user, system=system)
+
+
+@app.route('/api/change-password', methods=['POST'])
+def api_change_password():
+    te_user = session.get('te_user')
+    pe_user = session.get('pe_user')
+    if not te_user and not pe_user:
+        return jsonify({'success': False, 'message': 'Not logged in.'}), 401
+
+    payload      = request.get_json() or {}
+    old_password = (payload.get('old_password') or '').strip()
+    new_password = (payload.get('new_password') or '').strip()
+    confirm      = (payload.get('confirm_password') or '').strip()
+
+    if not old_password or not new_password or not confirm:
+        return jsonify({'success': False, 'message': 'All fields are required.'}), 400
+
+    if new_password != confirm:
+        return jsonify({'success': False, 'message': 'New passwords do not match.'}), 400
+
+    if te_user:
+        group = te_user['group']
+        badge = te_user.get('badge') or old_password  # badge doubles as current password
+        ok, msg = user_auth.change_password(group, badge, old_password, new_password,
+                                             db_session_fn=get_te_session)
+        if ok:
+            session['te_user']['badge'] = new_password  # keep session current
+    else:
+        group = pe_user['group']
+        badge = pe_user.get('badge') or old_password
+        ok, msg = user_auth.change_password(group, badge, old_password, new_password,
+                                             db_session_fn=get_pe_session)
+        if ok:
+            session['pe_user']['badge'] = new_password
+
+    return jsonify({'success': ok, 'message': msg}), (200 if ok else 400)
 
 # ─────────────────────────────────────────────
 # Cascading Dropdown APIs

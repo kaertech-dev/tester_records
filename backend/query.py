@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import text
 from backend.database import projects_engine, get_te_session, get_pe_session
 from backend.orm_models import TesterRecord, TesterCredential, User, ProcessCredential, ProcessRecord
+import bcrypt
 
 _CACHE = {
     'active_products': (None, 0),
@@ -372,14 +373,6 @@ class ProcessRecords:
 # ── UserAuth ──────────────────────────────────────────────────────────────────
 
 class UserAuth:
-    """
-    Authenticates person-in-charge via te.user.
-    User list is loaded once into memory and cached for _CACHE_TTL seconds.
-    """
-
-    def __init__(self):
-        self._users: dict = {}
-        self._load_users()
 
     def _load_users(self) -> dict:
         now = time.time()
@@ -392,8 +385,9 @@ class UserAuth:
             rows = session.query(User).all()
             users = {
                 (r.group, r.badge): {
-                    'name': r.name,
-                    'employee_num': r.employee_num,
+                    'name':          r.name,
+                    'employee_num':  r.employee_num,
+                    'password_hash': r.password_hash,   # ← include hash
                 }
                 for r in rows
             }
@@ -402,18 +396,68 @@ class UserAuth:
         return users
 
     def authenticate(self, group: str, password: str):
-        cache_key = f"{group}:{password}"
-        now       = time.time()
-
-        hit = _CACHE['auth'].get(cache_key)
-        if hit and now - hit[1] < _CACHE_TTL:
-            return hit[0]
-
+        """
+        Accepts both hashed passwords (new) and plain badge passwords (legacy).
+        Once a user logs in with their plain badge, we upgrade to bcrypt on the fly.
+        """
         self._load_users()
-        user   = self._users.get((group, password))
-        result = (
-            {'name': user['name'], 'employee_num': user['employee_num']}
-            if user else None
-        )
-        _CACHE['auth'][cache_key] = (result, now)
-        return result
+        user = self._users.get((group, password))  # legacy plain-text match
+
+        if user:
+            # Opportunistic upgrade: if no hash yet, hash it now
+            if not user.get('password_hash'):
+                self._store_hash(group, password, password)
+            return {'name': user['name'], 'employee_num': user['employee_num']}
+
+        # No plain-text match — try bcrypt against all users in this group
+        for (g, b), u in self._users.items():
+            if g != group:
+                continue
+            ph = u.get('password_hash')
+            if ph and bcrypt.checkpw(password.encode(), ph.encode()):
+                return {'name': u['name'], 'employee_num': u['employee_num']}
+
+        return None
+
+    def _store_hash(self, group: str, badge: str, plain_password: str, db_session_fn=None):
+        """Hash plain_password and write it to the DB row matching (group, badge)."""
+        hashed = bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
+        get_session = db_session_fn or get_te_session
+        with get_session() as session:
+            row = session.query(User).filter(
+                User.group == group,
+                User.badge == badge
+            ).first()
+            if row:
+                row.password_hash = hashed
+        _CACHE['users'] = (None, 0)  # bust cache
+
+    def change_password(self, group: str, badge: str, old_password: str,
+                        new_password: str, db_session_fn=None):
+        """
+        Verify old_password (plain or hashed), then store bcrypt hash of new_password.
+        Returns (True, 'message') or (False, 'error').
+        """
+        user = self.authenticate(group, old_password)
+        if not user:
+            return False, 'Current password is incorrect.'
+
+        if len(new_password) < 6:
+            return False, 'New password must be at least 6 characters.'
+
+        get_session = db_session_fn or get_te_session
+        hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+
+        with get_session() as session:
+            row = session.query(User).filter(
+                User.group == group,
+                User.badge == badge
+            ).first()
+            if not row:
+                return False, 'User not found.'
+            row.badge         = new_password   # keep badge in sync (used as login key)
+            row.password_hash = hashed
+
+        _CACHE['users'] = (None, 0)
+        _CACHE['auth']  = {}
+        return True, 'Password changed successfully.'
