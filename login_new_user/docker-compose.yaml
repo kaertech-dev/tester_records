@@ -1,12 +1,12 @@
-# docker-compose.yaml
 services:
   flask-app:
     build: .
     container_name: new_operator_
     ports:
-      - "5001:5001"
+      - "5002:5002"
     restart: always
     env_file:
       - .env
     environment:
-      - FLASK_ENV=production
+      FLASK_ENV: production
+      DB_PORT: 3306
