@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Process Sign-in — Test Traceability</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/process_new_transaction.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
+</head>
+<body>
+<div class="page-wrap">
+
+    <header class="page-header">
+        <div class="header-left">
+            <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
+                <rect width="36" height="36" rx="10" fill="#3B6D11"/>
+                <path d="M10 12h16M10 18h10M10 24h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="27" cy="24" r="4" fill="white" fill-opacity=".9"/>
+                <path d="M25.5 24l1 1 2-2" stroke="#3B6D11" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="header-title">PROCESS ENGINEER SIGN-IN</span>
+        </div>
+        <a href="{{ url_for('second_window') }}" class="btn-back">← Back</a>
+    </header>
+
+    <main class="form-area">
+        <div class="form-card" style="max-width:400px; margin:0 auto;">
+            <p class="section-title">Process Engineer Sign-in</p>
+            <p style="font-size:13px; color:#607d8b; margin-bottom:1.25rem;">
+                Enter your KE No. and password to continue.
+            </p>
+
+            <div class="field-group" style="margin-bottom:1rem;">
+                <label for="login-ke-no">KE No. <span class="hint">e.g. KE-00123</span></label>
+                <input type="text" id="login-ke-no" placeholder="Enter your KE No." autocomplete="off">
+            </div>
+
+            <div class="field-group" style="margin-bottom:1.25rem;">
+                <label for="login-password">Password</label>
+                <input type="password" id="login-password" placeholder="Enter your password">
+            </div>
+
+            <div id="login-error" class="status-msg hidden"></div>
+
+            <div class="form-actions" style="margin-top:1rem;">
+                <button type="button" id="btn-login" class="btn-create">Sign In</button>
+            </div>
+        </div>
+    </main>
+
+</div>
+<script src="{{ url_for('static', filename='js/process_login.js') }}"></script>
+</body>
+</html>

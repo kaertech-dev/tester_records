@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — Traceability System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/selection_window.css') }}">
+</head>
+<body class="body">
+    <div class="bg-grid"></div>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="logo-wrap">
+                <div class="logo-icon">
+                    <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                        <rect width="36" height="36" rx="10" fill="url(#logoGrad)"/>
+                        <path d="M10 12h16M10 18h10M10 24h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                        <circle cx="27" cy="24" r="4" fill="white" fill-opacity="0.9"/>
+                        <path d="M25.5 24l1 1 2-2" stroke="#1a9b3c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <defs>
+                            <linearGradient id="logoGrad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#22c55e"/>
+                                <stop offset="1" stop-color="#15803d"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-main">Traceability System</span>
+                    <span class="logo-sub">Sign in to continue</span>
+                </div>
+            </div>
+
+            <div class="field-group">
+                <label for="login-group">Group / Username</label>
+                <input type="text" id="login-group" placeholder="e.g. TE-GROUP1" autocomplete="off">
+            </div>
+            <div class="field-group">
+                <label for="login-badge">Badge / Password</label>
+                <input type="password" id="login-badge" placeholder="••••••••">
+            </div>
+
+            <button id="login-btn" class="btn-login">Sign In</button>
+            <div id="login-status" class="login-status"></div>
+
+            <p class="login-hint">System is auto-detected from your credentials.</p>
+        </div>
+    </div>
+
+    <script>
+        const groupIn  = document.getElementById('login-group');
+        const badgeIn  = document.getElementById('login-badge');
+        const loginBtn = document.getElementById('login-btn');
+        const status   = document.getElementById('login-status');
+
+        function setStatus(msg, ok) {
+            status.textContent = msg;
+            status.className = 'login-status ' + (ok ? 'ok' : 'err');
+        }
+
+        async function doLogin() {
+            const group    = groupIn.value.trim();
+            const password = badgeIn.value.trim();
+            if (!group || !password) { setStatus('Group and password are required.', false); return; }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Signing in…';
+            status.textContent = '';
+
+            try {
+                const res  = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setStatus('Authenticated! Redirecting…', true);
+                    window.location.href = data.redirect;
+                } else {
+                    setStatus(data.message || 'Invalid credentials.', false);
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Sign In';
+                }
+            } catch (e) {
+                setStatus('Network error. Please try again.', false);
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In';
+            }
+        }
+
+        loginBtn.addEventListener('click', doLogin);
+        [groupIn, badgeIn].forEach(el =>
+            el.addEventListener('keydown', e => e.key === 'Enter' && doLogin())
+        );
+    </script>
+</body>
+</html>

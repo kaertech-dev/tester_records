@@ -1,0 +1,150 @@
+<!-- download_data.html -->
+<!-- 
+  HOW TO INTEGRATE INTO first_window.html:
+  
+  1. In <head>, add:
+       <link rel="stylesheet" href="{{ url_for('static', filename='css/download_data.css') }}">
+
+  2. Paste the TRIGGER BUTTON wherever you want it (e.g. inside <header> or <footer>):
+       (see the "Trigger Button" section below)
+
+  3. Paste the MODAL OVERLAY just before </body>:
+       (see the "Modal" section below)
+
+  4. Just before </body>, add the script:
+       <script src="{{ url_for('static', filename='js/download_data.js') }}"></script>
+
+  5. In app.py, register the blueprint:
+       from backend.download_data import download_bp
+       app.register_blueprint(download_bp)
+-->
+
+
+<!-- ═══════════════════════════════════════════════
+     TRIGGER BUTTON  — paste inside <header> or <footer>
+════════════════════════════════════════════════════ -->
+<button id="dl-open-btn" type="button" class="dl-open-btn">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2.5"
+         stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    Download Records
+</button>
+
+
+<!-- ═══════════════════════════════════════════════
+     MODAL OVERLAY  — paste just before </body>
+════════════════════════════════════════════════════ -->
+<div id="download-overlay">
+    <div class="dl-modal" role="dialog" aria-modal="true" aria-labelledby="dl-modal-title">
+
+        <!-- Header -->
+        <div class="dl-header">
+            <div class="dl-title" id="dl-modal-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="#4ade80" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download Tester Records
+            </div>
+            <button id="dl-close-btn" class="dl-close" aria-label="Close">✕</button>
+        </div>
+
+        <!-- Mode tabs -->
+        <div class="dl-tabs" role="tablist">
+            <button class="dl-tab active" data-mode="today"  role="tab">Today</button>
+            <button class="dl-tab"        data-mode="day"    role="tab">Day</button>
+            <button class="dl-tab"        data-mode="week"   role="tab">Week</button>
+            <button class="dl-tab"        data-mode="month"  role="tab">Month</button>
+            <button class="dl-tab"        data-mode="range"  role="tab">Range</button>
+        </div>
+
+        <!-- Panel: Today -->
+        <div class="dl-panel active" id="panel-today" role="tabpanel">
+            <p class="dl-note">
+                Downloads all tester records created <strong>today</strong>
+                (based on <code>datetime_start</code>).
+            </p>
+        </div>
+
+        <!-- Panel: Day -->
+        <div class="dl-panel" id="panel-day" role="tabpanel">
+            <div class="dl-field">
+                <label class="dl-label" for="dl-date">Select Date</label>
+                <input class="dl-input" type="date" id="dl-date">
+            </div>
+        </div>
+
+        <!-- Panel: Week -->
+        <div class="dl-panel" id="panel-week" role="tabpanel">
+            <div class="dl-row">
+                <div class="dl-field">
+                    <label class="dl-label" for="dl-week-year">Year</label>
+                    <input class="dl-input" type="number" id="dl-week-year"
+                           min="2000" max="2099" placeholder="2025">
+                </div>
+                <div class="dl-field">
+                    <label class="dl-label" for="dl-week-num">ISO Week #</label>
+                    <input class="dl-input" type="number" id="dl-week-num"
+                           min="1" max="53" placeholder="1–53">
+                </div>
+            </div>
+            <p class="dl-note">Week runs Monday → Sunday (ISO 8601).</p>
+        </div>
+
+        <!-- Panel: Month -->
+        <div class="dl-panel" id="panel-month" role="tabpanel">
+            <div class="dl-row">
+                <div class="dl-field">
+                    <label class="dl-label" for="dl-month-year">Year</label>
+                    <input class="dl-input" type="number" id="dl-month-year"
+                           min="2000" max="2099" placeholder="2025">
+                </div>
+                <div class="dl-field">
+                    <label class="dl-label" for="dl-month-num">Month</label>
+                    <input class="dl-input" type="number" id="dl-month-num"
+                           min="1" max="12" placeholder="1–12">
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel: Range -->
+        <div class="dl-panel" id="panel-range" role="tabpanel">
+            <div class="dl-row">
+                <div class="dl-field">
+                    <label class="dl-label" for="dl-range-start">From</label>
+                    <input class="dl-input" type="date" id="dl-range-start">
+                </div>
+                <div class="dl-field">
+                    <label class="dl-label" for="dl-range-end">To</label>
+                    <input class="dl-input" type="date" id="dl-range-end">
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="dl-footer">
+            <button id="dl-cancel-btn" type="button" class="dl-btn-cancel">Cancel</button>
+            <button id="dl-btn-download" type="button" class="dl-btn-download">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download CSV
+            </button>
+        </div>
+
+        <!-- Status line -->
+        <div id="dl-status" class="dl-status"></div>
+
+    </div>
+</div>

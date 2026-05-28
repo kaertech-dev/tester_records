@@ -1,0 +1,210 @@
+<!-- new_transaction.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Transaction — Test Traceability</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/new_transaction.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
+</head>
+<body>
+    <div class="page-wrap">
+
+        <!-- ① Sticky header — outside <main>, same pattern as close_transaction -->
+        <header class="page-header">
+            <div class="header-left">
+                <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
+                    <rect width="36" height="36" rx="10" fill="#3B6D11"/>
+                    <path d="M10 12h16M10 18h10M10 24h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="27" cy="24" r="4" fill="white" fill-opacity=".9"/>
+                    <path d="M25.5 24l1 1 2-2" stroke="#3B6D11" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="header-title">NEW TRANSACTION</span>
+            </div>
+            <a href="{{ url_for('first_window') }}" class="btn-back" id="exit-btn">← Back</a>
+        </header>
+
+        <!-- ② Main form area -->
+        <main class="form-area">
+            <form id="new-transaction-form" method="POST" action="{{ url_for('new_transaction') }}">
+
+                <!-- ③ Form card wraps all fields -->
+                <div class="form-card">
+                    <div class="form-grid">
+
+                        <!-- LEFT COLUMN -->
+                        <div class="form-col">
+                            <p class="section-title">Product Details</p>
+
+                            <div class="field-group" id="group-product">
+                                <label for="product">Product</label>
+                                <select id="product" name="product" required>
+                                    <option value="" disabled selected>Select a product…</option>
+                                    {% for p in products %}
+                                    <option value="{{ p.id }}">{{ p.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="field-group" id="group-model">
+                                <label for="model">Model</label>
+                                <select id="model" name="model" required>
+                                    <option value="" disabled selected>Select product first…</option>
+                                </select>
+                            </div>
+
+                            <div class="field-group" id="group-station">
+                                <label for="station">Station</label>
+                                <select id="station" name="station" required>
+                                    <option value="" disabled selected>Select model first…</option>
+                                </select>
+                            </div>
+
+                            <div class="field-group" id="group-classification">
+                                <label for="classification">Classification</label>
+                                <select id="classification" name="classification" required>
+                                    <option value="" disabled selected>Select a classification…</option>
+                                    <option value="CALIBRATION">Calibration</option>
+                                    <option value="CORRECTIVE MAINTENANCE">Corrective Maintenance</option>
+                                    <option value="DEPLOYMENT">Deployment</option>
+                                    <option value="PREVENTIVE MAINTENANCE">Preventive Maintenance</option>
+                                    <option value="REPAIR">Repair</option>
+                                    <option value="SETUP">Setup</option>
+                                    <option value="START UP">Start Up</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT COLUMN -->
+                        <div class="form-col">
+                            <p class="section-title">Assignment &amp; Equipment</p>
+
+                            <!-- Person in Charge — authorize via te.user -->
+                            <div class="field-group" id="group-pic">
+                                <label for="pic-email">Person in Charge</label>
+                                <div class="pic-auth-row">
+                                    <input type="text" id="pic-email" placeholder="Group / username" autocomplete="off" readonly required>
+                                    <input type="password" id="pic-password" placeholder="Badge / password" autocomplete="off" readonly required>
+                                    <button type="button" id="btn-auth-pic" class="btn-auth">Authorize</button>
+                                </div>
+                                <div id="pic-status" class="pic-status hidden"></div>
+                                <!-- hidden field carries authorized employee_num to form POST -->
+                                <input type="hidden" id="person_in_charge" name="person_in_charge" readonly required>
+                            </div>
+
+                            <div class="field-group" id="group-fixture">
+                                <label for="fixture_asset_no">Fixture Asset No.</label>
+                                <div class="fixture-row">
+                                    <input type="text" id="fixture_asset_no" name="fixture_asset_no"
+                                        placeholder="e.g. KP-0003314" required autocomplete="off">
+                                    <button type="button" id="btn-lookup-fixture" class="btn-auth">Look Up</button>
+                                </div>
+                            </div>
+
+                            <div class="field-group" id="group-tester-code">
+                                <label for="tester_code">Tester Code</label>
+                                <input type="text" id="tester_code" name="tester_code"
+                                    placeholder="Auto-filled from asset" readonly required>
+                            </div>
+
+                            <div class="field-group" id="group-tester-name">
+                                <label for="tester_name">Tester Name</label>
+                                <input type="text" id="tester_name" name="tester_name"
+                                    placeholder="Auto-filled from asset" readonly required>
+                            </div>
+
+                            <div class="field-group" id="group-issues">
+                                <label for="issues">Issues</label>
+                                <input type="text" id="issues" name="issues"
+                                    placeholder="Describe any issues encountered…" autocomplete="off">
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- ④ Form actions inside the card -->
+                    <div class="form-actions">
+                        <button type="submit" id="btn-create" class="btn-create">Create Transaction</button>
+                        <a href="{{ url_for('first_window') }}" class="btn-cancel" id="cancel-btn">Cancel</a>
+                    </div>
+                </div>
+
+            </form>
+        </main>
+
+    </div>
+
+    <script src="{{ url_for('static', filename='js/new_transaction.js') }}"></script>
+    <script>
+        const picEmailInput      = document.getElementById('pic-email');
+        const picPasswordInput   = document.getElementById('pic-password');
+        const btnAuthPic         = document.getElementById('btn-auth-pic');
+        const picStatus          = document.getElementById('pic-status');
+        const personInChargeInput = document.getElementById('person_in_charge');
+
+        // ── Auto-fill from session if already logged in ──────────────────
+        const sessionUser = {
+            name:         "{{ te_user.get('name', '') | e }}",
+            employee_num: "{{ te_user.get('employee_num', '') | e }}",
+            group:        "{{ te_user.get('group', '') | e }}"
+        };
+
+        if (sessionUser.employee_num) {
+            picEmailInput.value        = sessionUser.group;
+            picPasswordInput.value     = '••••••••';   // visual placeholder only
+            picPasswordInput.disabled  = true;
+            btnAuthPic.disabled        = true;
+            personInChargeInput.value  = sessionUser.employee_num;
+
+            picStatus.textContent = `Authorized: ${sessionUser.name || sessionUser.group}`;
+            picStatus.classList.remove('hidden');
+            picStatus.style.color = '#16a34a';
+        }
+        // ─────────────────────────────────────────────────────────────────
+
+        function setPicStatus(message, type) {
+            picStatus.textContent = message;
+            picStatus.classList.remove('hidden');
+            picStatus.style.color = type === 'success' ? '#16a34a' : '#dc2626';
+        }
+
+        async function authenticatePersonInCharge() {
+            const group  = picEmailInput.value.trim();
+            const badge  = picPasswordInput.value.trim();
+
+            if (!group || !badge) {
+                setPicStatus('Group and badge are required.', 'error');
+                personInChargeInput.value = '';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group, password: badge })
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    setPicStatus(result.message || 'Authorization failed.', 'error');
+                    personInChargeInput.value = '';
+                    return;
+                }
+
+                personInChargeInput.value = result.employee_num || '';
+                setPicStatus(`Authorized: ${result.name || group}`, 'success');
+            } catch (error) {
+                console.error('Auth error', error);
+                setPicStatus('Unable to verify credentials.', 'error');
+                personInChargeInput.value = '';
+            }
+        }
+
+        btnAuthPic?.addEventListener('click', authenticatePersonInCharge);
+    </script>
+</body>
+</html>

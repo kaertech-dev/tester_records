@@ -1,0 +1,228 @@
+<!-- signin_user.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operator Sign-In — New User</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/signin_user.css') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
+  <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.css" rel="stylesheet"/>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <!-- replace the card-header-top div in signin_user.html -->
+    <div class="card-header-top">
+      <div class="dept-tag">Production</div>
+      <div class="header-actions">
+        <a href="/admin/users" class="btn-admin" id="adminLink" style="display:none;">
+          ⚙ Admin
+        </a>
+        <a href="/admin/users" class="btn-admin" id="adminLink" style="display:none;">
+          ⚙ Admin
+        </a>
+        <button class="btn-logout" id="logoutBtn" title="Sign out">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          Sign Out
+        </button>
+      </div>
+    </div>
+    <h1>Sign In <span>New User</span></h1>
+    <p class="subtitle">Complete the form to register a new operator.</p>
+  </div>
+  <div class="divider"></div>
+
+  <form id="signinForm" novalidate autocomplete="off">
+    <div class="form-grid">
+
+      <div class="field">
+        <label for="operator_en">Operator EN</label>
+        <input type="text" id="operator_en" name="operator_en" placeholder="e.g. KExxxx" />
+        <span class="field-error" id="err_operator_en"></span>
+      </div>
+
+      <div class="field">
+        <label for="employee_name">Employee Name</label>
+        <input type="text" id="employee_name" name="employee_name" placeholder="Full name" />
+        <span class="field-error" id="err_employee_name"></span>
+      </div>
+
+      <div class="field">
+        <label for="date_hired">Date Hired</label>
+        <input type="date" id="date_hired" name="date_hired" />
+        <span class="field-error" id="err_date_hired"></span>
+      </div>
+
+      <div class="field">
+        <label for="status">Status</label>
+        <input type="text" id="status" name="status" placeholder="e.g. Probationary / Regular" />
+        <span class="field-error" id="err_status"></span>
+      </div>
+
+      <div class="field">
+        <label for="contact">Contact</label>
+        <input type="tel" id="contact" name="contact" placeholder="e.g. 09XX XXX XXXX" />
+        <span class="field-error" id="err_contact"></span>
+      </div>
+
+      <div class="field">
+        <label for="process">Process</label>
+
+        <select id="process" name="process" multiple>
+          <option value="">Select Process</option>
+          <option value="Assembly">Assembly</option>
+          <option value="Inspection">Inspection</option>
+          <option value="Packaging">Packaging</option>
+          <option value="Testing">Testing</option>
+          <option value="Welding">Welding</option>
+        </select>
+
+        <span class="field-error" id="err_process"></span>
+      </div>
+
+    </div><!-- /.form-grid -->
+
+    <button type="submit" class="btn-submit" id="submitBtn">
+      <span class="btn-text">Register Operator</span>
+      <span class="spinner"></span>
+    </button>
+  </form>
+</div><!-- /.card -->
+
+<div id="toast">
+  <span class="toast-icon">✓</span>
+  <span id="toastMsg">Done!</span>
+</div>
+
+<script>
+  // Show admin link only for admins
+  fetch('/api/me')
+    .then(r => r.json())
+    .then(d => { if (d.is_admin) document.getElementById('adminLink').style.display = 'inline-flex'; });
+  const fields = ['operator_en','employee_name','date_hired','status','contact','process'];
+  const requiredFields = ['operator_en','employee_name','date_hired','status','process'];
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    const icon = t.querySelector('.toast-icon');
+    document.getElementById('toastMsg').textContent = msg;
+    t.classList.toggle('toast-error', isError);
+    icon.textContent = isError ? '✕' : '✓';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  function clearErrors() {
+    fields.forEach(f => {
+      document.getElementById(f).classList.remove('error-field');
+      document.getElementById('err_' + f).textContent = '';
+    });
+  }
+
+  function validate(data) {
+    let ok = true;
+    requiredFields.forEach(f => {
+      if (
+        !data[f] ||
+        (Array.isArray(data[f]) && data[f].length === 0) ||
+        (!Array.isArray(data[f]) && !data[f].trim())
+      ) {
+        document.getElementById(f).classList.add('error-field');
+        document.getElementById('err_' + f).textContent = 'This field is required.';
+        ok = false;
+      }
+    });
+    return ok;
+  }
+
+  // Register form submit
+  document.getElementById('signinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors();
+
+    const data = {};
+    fields.forEach(f => {
+      const el = document.getElementById(f);
+
+      if (f === 'process') {
+        data[f] = Array.from(el.selectedOptions).map(o => o.value);
+      } else {
+        data[f] = el.value;
+      }
+    });
+
+    if (!validate(data)) return;
+
+    const btn = document.getElementById('submitBtn');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
+
+      if (res.status === 401 || res.redirected) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (json.success) {
+        showToast(json.message);
+        document.getElementById('signinForm').reset();
+        processSelect.clear();
+      } else {
+        showToast(json.message || 'Something went wrong.', true);
+      }
+    } catch (err) {
+      showToast('Network error. Please try again.', true);
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  });
+
+  // Remove error state on input
+  fields.forEach(f => {
+    document.getElementById(f).addEventListener('input', () => {
+      document.getElementById(f).classList.remove('error-field');
+      document.getElementById('err_' + f).textContent = '';
+    });
+  });
+
+  // Logout
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('logoutBtn');
+    btn.disabled = true;
+    try {
+      await fetch('/api/logout', { method: 'POST' });
+    } finally {
+      window.location.href = '/login';
+    }
+  });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
+
+<script>
+  const processSelect = new TomSelect("#process", {
+    plugins: ['remove_button'],
+    create: false,
+    persist: false,
+    maxItems: null,
+    placeholder: "Select one or more processes..."
+  });
+</script>
+</body>
+</html>

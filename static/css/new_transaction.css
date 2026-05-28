@@ -1,0 +1,322 @@
+/* new_transaction.css */
+
+:root {
+    --green-50:  #EAF3DE;
+    --green-100: #C0DD97;
+    --green-300: #639922;
+    --green-600: #3B6D11;
+    --green-800: #27500A;
+    --surface:   #FAFAF8;
+    --card-bg:   #FFFFFF;
+    --border:    rgba(0, 0, 0, 0.10);
+    --border-mid: rgba(0, 0, 0, 0.16);
+    --border-focus: #3B6D11;
+    --text-primary: #1C1C1A;
+    --text-muted:   #6B6B66;
+    --text-label:   #27500A;
+    --radius: 8px;
+    --font: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font);
+    background: var(--surface);
+    color: var(--text-primary);
+    min-height: 100vh;
+}
+
+/* ── Page shell ─────────────────────────────────── */
+.page-wrap {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* ── Sticky header (matches close_transaction) ───── */
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    background: var(--card-bg);
+    border-bottom: 0.5px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.header-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--green-800);
+}
+
+.btn-back {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 6px 14px;
+    border: 0.5px solid var(--border);
+    border-radius: 99px;
+    transition: all 0.15s ease;
+}
+
+.btn-back:hover {
+    background: var(--green-50);
+    color: var(--green-800);
+    border-color: var(--green-100);
+}
+
+/* ── Form content area ───────────────────────────── */
+.form-area {
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 2rem 1.5rem 3rem;
+}
+
+/* ── Form card ───────────────────────────────────── */
+.form-card {
+    background: var(--card-bg);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+/* ── Two-column grid ─────────────────────────────── */
+.form-grid {
+    display: grid;
+    /* grid-template-columns: 1fr 1fr; */
+    gap: 2.5rem;
+    margin-bottom: 2rem;
+}
+
+.form-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* ── Section divider label ───────────────────────── */
+.section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    padding-bottom: 0.5rem;
+    border-bottom: 0.5px solid var(--border);
+}
+
+/* ── Field groups ────────────────────────────────── */
+.field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.field-group label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-label);
+}
+
+/* ── Shared input / select styles ────────────────── */
+.field-group select,
+.field-group input[type="text"],
+.field-group input[type="password"],
+.pic-auth-row input,
+.fixture-row input,
+.issues-group input[type="text"] {
+    font-family: var(--font);
+    font-size: 14px;
+    color: var(--text-primary);
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 12px;
+    width: 100%;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.field-group select:hover:not(:disabled),
+.field-group input[type="text"]:hover:not([readonly]),
+.field-group input[type="password"]:hover,
+.pic-auth-row input:hover,
+.fixture-row input:hover {
+    border-color: var(--green-300);
+}
+
+.field-group select:focus,
+.field-group input:focus,
+.pic-auth-row input:focus,
+.fixture-row input:focus,
+.issues-group input[type="text"]:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px rgba(59, 109, 17, 0.12);
+}
+
+.field-group select:disabled,
+.field-group input[readonly] {
+    background: #F1F5F0;
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+/* Custom dropdown arrow */
+.field-group select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B6B66' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 32px;
+}
+
+/* ── PIC auth row ────────────────────────────────── */
+.pic-auth-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.pic-status {
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 2px;
+    padding: 6px 10px;
+    border-radius: 6px;
+}
+
+.pic-status.hidden { display: none; }
+
+/* ── Fixture row ─────────────────────────────────── */
+.fixture-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+}
+
+/* ── Authorize / Look Up buttons ─────────────────── */
+.btn-auth {
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--green-800);
+    background: var(--green-50);
+    border: 0.5px solid var(--green-100);
+    border-radius: var(--radius);
+    padding: 9px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.btn-auth:hover  { background: var(--green-100); border-color: var(--green-300); }
+.btn-auth:active { transform: scale(0.97); }
+
+/* ── Issues checkbox ─────────────────────────────── */
+.issues-group { margin-top: 0.25rem; }
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-label);
+    margin-bottom: 6px;
+}
+
+.checkbox-label input[type="checkbox"] { display: none; }
+
+.checkbox-custom {
+    width: 16px;
+    height: 16px;
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
+    background: var(--green-600);
+    border-color: var(--green-600);
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkbox-custom::after {
+    content: '';
+    display: block;
+    width: 8px;
+    height: 5px;
+    border-left: 1.5px solid white;
+    border-bottom: 1.5px solid white;
+    transform: rotate(-45deg) translateY(-1px);
+}
+
+/* ── Form actions ────────────────────────────────── */
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 1.25rem;
+    border-top: 0.5px solid var(--border);
+}
+
+.btn-create {
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+    background: var(--green-600);
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px 24px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.btn-create:hover  { background: var(--green-800); }
+.btn-create:active { transform: scale(0.98); }
+
+.btn-cancel {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.btn-cancel:hover {
+    color: var(--text-primary);
+    background: var(--green-50);
+}
