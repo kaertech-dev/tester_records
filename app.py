@@ -27,17 +27,17 @@ process_records  = ProcessRecords()
 def index():
     # If already logged in, send straight to the right window
     if session.get('system_type') == 'te':
-        return redirect(url_for('first_window'))
+        return redirect(url_for('test_window'))
     if session.get('system_type') == 'pe':
         return redirect(url_for('second_window'))
     return render_template('selection_window.html')
 
 # this route directed to tester side
 @app.route('/first-window')
-def first_window():
+def test_window():
     if session.get('system_type') != 'te':
         return redirect(url_for('index'))
-    return render_template('first_window.html')
+    return render_template('test_window.html')
 
 # # this route directed to process side
 # @app.route('/second-window')
@@ -69,7 +69,7 @@ def api_login():
             'group':        group,
         }
         session.pop('pe_user', None)
-        return jsonify({'success': True, 'redirect': url_for('first_window')})
+        return jsonify({'success': True, 'redirect': url_for('test_window')})
 
     # Try PE
     try:
