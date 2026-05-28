@@ -182,6 +182,7 @@
       if (json.success) {
         showToast(json.message);
         document.getElementById('signinForm').reset();
+        processSelect.clear();
       } else {
         showToast(json.message || 'Something went wrong.', true);
       }
@@ -215,7 +216,7 @@
 <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
 
 <script>
-  new TomSelect("#process", {
+  const processSelect = new TomSelect("#process", {
     plugins: ['remove_button'],
     create: false,
     persist: false,

@@ -106,7 +106,9 @@ def signin_new_user():
     date_hired    = data.get('date_hired', '').strip()
     status        = data.get('status', '').strip()
     contact       = data.get('contact', '').strip()
-    process       = data.get('process', '').strip()
+    process       = data.get('process', [])
+    if isinstance(process, list):
+        process = ','.join(process)
 
     if not all([operator_en, employee_name, date_hired, status, process]):
         return jsonify({'success': False, 'message': 'All fields are required.'}), 400
