@@ -246,6 +246,27 @@ input::placeholder { color: #3a4e6a; }
     animation: spin 0.7s linear infinite;
     margin: 0 auto;
 }
+
+.ts-wrapper.multi .ts-control {
+  border-radius: 14px !important;
+  padding: 10px !important;
+  border: 1px solid #dcdcdc !important;
+  min-height: 48px;
+}
+
+.ts-wrapper.multi .ts-control > div {
+  background: #111;
+  color: white;
+  border-radius: 8px;
+  padding: 4px 8px;
+  margin: 2px;
+}
+
+.ts-dropdown {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 .btn-submit.loading .btn-text { display: none; }
 .btn-submit.loading .spinner { display: block; }
