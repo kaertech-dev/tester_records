@@ -31,12 +31,11 @@ class TesterCredential(Base):
 
 class User(Base):
     __tablename__ = 'user'
-
-    group = Column(String(50), primary_key=True)
-    badge = Column(String(50), primary_key=True)
+    
+    employee_num = Column(String(50), primary_key=True)
     name = Column(String(100))
-    employee_num = Column(String(50))
-    password_hash = Column(String(255), nullable=True)
+    group = Column(String(50))
+    badge = Column(String(128), unique=True)
 
 # =========================
 #  Process Records

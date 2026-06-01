@@ -384,10 +384,11 @@ class UserAuth:
         with get_te_session() as session:
             rows = session.query(User).all()
             users = {
-                (r.group, r.badge): {
-                    'name':          r.name,
-                    'employee_num':  r.employee_num,
-                    'password_hash': r.password_hash,   # ← include hash
+                r.employee_num: {
+                    'employee_num': r.employee_num,
+                    'group':        r.group,
+                    'name':         r.name,
+                    'badge':        r.badge,
                 }
                 for r in rows
             }
@@ -395,50 +396,71 @@ class UserAuth:
         self._users = users
         return users
 
-    def authenticate(self, group: str, password: str):
+    @staticmethod
+    def _is_hashed(value: str) -> bool:
+        return isinstance(value, str) and value.startswith('$2')
+
+    @staticmethod
+    def _verify_badge(stored_badge: str, password: str) -> bool:
+        if not stored_badge:
+            return False
+        if stored_badge.startswith('$2'):
+            try:
+                return bcrypt.checkpw(password.encode(), stored_badge.encode())
+            except Exception:
+                return False
+        return stored_badge == password
+
+    def _upgrade_plaintext_badge(self, employee_num: str, password: str) -> None:
+        hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        with get_te_session() as session:
+            row = session.query(User).filter(User.employee_num == employee_num).first()
+            if row and row.badge == password:
+                row.badge = hashed
+        _CACHE['users'] = (None, 0)
+
+    def authenticate(self, identity: str, password: str):
         """
-        Accepts both hashed passwords (new) and plain badge passwords (legacy).
-        Once a user logs in with their plain badge, we upgrade to bcrypt on the fly.
+        Accepts either group or employee_num as identity.
+        Uses bcrypt-protected badge values wherever possible.
+        Legacy plaintext badges are upgraded on successful login.
         """
         self._load_users()
-        user = self._users.get((group, password))  # legacy plain-text match
 
-        if user:
-            # Opportunistic upgrade: if no hash yet, hash it now
-            if not user.get('password_hash'):
-                self._store_hash(group, password, password)
-            return {'name': user['name'], 'employee_num': user['employee_num']}
+        # Try employee_num lookup first
+        user = self._users.get(identity)
+        if user and self._verify_badge(user.get('badge', ''), password):
+            if not self._is_hashed(user.get('badge', '')):
+                self._upgrade_plaintext_badge(identity, password)
+            return {
+                'group':        user['group'],
+                'name':         user['name'],
+                'employee_num': user['employee_num'],
+            }
 
-        # No plain-text match — try bcrypt against all users in this group
-        for (g, b), u in self._users.items():
-            if g != group:
+        # Fallback to group-based lookup if identity is a group
+        for u in self._users.values():
+            if u.get('group') != identity:
                 continue
-            ph = u.get('password_hash')
-            if ph and bcrypt.checkpw(password.encode(), ph.encode()):
-                return {'name': u['name'], 'employee_num': u['employee_num']}
+            if self._verify_badge(u.get('badge', ''), password):
+                if not self._is_hashed(u.get('badge', '')):
+                    self._upgrade_plaintext_badge(u['employee_num'], password)
+                return {
+                    'group':        u['group'],
+                    'name':         u['name'],
+                    'employee_num': u['employee_num'],
+                }
 
         return None
 
-    def _store_hash(self, group: str, badge: str, plain_password: str, db_session_fn=None):
-        """Hash plain_password and write it to the DB row matching (group, badge)."""
-        hashed = bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
-        get_session = db_session_fn or get_te_session
-        with get_session() as session:
-            row = session.query(User).filter(
-                User.group == group,
-                User.badge == badge
-            ).first()
-            if row:
-                row.password_hash = hashed
-        _CACHE['users'] = (None, 0)  # bust cache
 
-    def change_password(self, group: str, badge: str, old_password: str,
+    def change_password(self, identity: str, old_password: str,
                         new_password: str, db_session_fn=None):
         """
-        Verify old_password (plain or hashed), then store bcrypt hash of new_password.
+        Verify old_password and store bcrypt hash of new_password in the badge field.
         Returns (True, 'message') or (False, 'error').
         """
-        user = self.authenticate(group, old_password)
+        user = self.authenticate(identity, old_password)
         if not user:
             return False, 'Current password is incorrect.'
 
@@ -450,13 +472,11 @@ class UserAuth:
 
         with get_session() as session:
             row = session.query(User).filter(
-                User.group == group,
-                User.badge == badge
+                User.employee_num == user['employee_num']
             ).first()
             if not row:
                 return False, 'User not found.'
-            row.badge         = new_password   # keep badge in sync (used as login key)
-            row.password_hash = hashed
+            row.badge = hashed
 
         _CACHE['users'] = (None, 0)
         _CACHE['auth']  = {}

@@ -53,20 +53,20 @@ def test_window():
 @app.route('/api/login', methods=['POST'])
 def api_login():
     payload  = request.get_json() or {}
-    group    = (payload.get('group') or '').strip()
-    password = (payload.get('password') or '').strip()
+    employee_num = (payload.get('employee_num') or '').strip()
+    password     = (payload.get('password') or payload.get('badge') or '').strip()
 
-    if not group or not password:
-        return jsonify({'success': False, 'message': 'Group and password are required.'}), 400
+    if not employee_num or not password:
+        return jsonify({'success': False, 'message': 'Employee number and password/badge are required.'}), 400
 
     # Try TE first
-    te_user = user_auth.authenticate(group, password)
+    te_user = user_auth.authenticate(employee_num, password)
     if te_user:
         session['system_type'] = 'te'
         session['te_user'] = {
-            'name':         te_user.get('name', group),
+            'name':         te_user.get('name', employee_num),
             'employee_num': te_user.get('employee_num'),
-            'group':        group,
+            'group':        te_user.get('group', employee_num),
         }
         session.pop('pe_user', None)
         return jsonify({'success': True, 'redirect': url_for('test_window')})
@@ -76,7 +76,7 @@ def api_login():
         from backend.orm_models import User as OrmUser
         with get_pe_session() as db:
             pe_row = db.query(OrmUser).filter(
-                OrmUser.group == group,
+                OrmUser.employee_num == employee_num,
                 OrmUser.badge == password
             ).first()
             if pe_row:
@@ -165,16 +165,15 @@ def close_transaction_submit():
 @app.route('/api/auth-user', methods=['POST'])
 def auth_user():
     payload = request.get_json() or {}
-    group    = payload.get('group') or payload.get('email', '')
-    password = payload.get('password', '').strip()
-    group    = (group or '').strip()
-    if not group or not password:
-        return jsonify({'success': False, 'message': 'Group and password required.'}), 400
-    user = user_auth.authenticate(group, password)
+    identity = (payload.get('employee_num') or payload.get('group') or payload.get('email') or '').strip()
+    password = (payload.get('password') or '').strip()
+    if not identity or not password:
+        return jsonify({'success': False, 'message': 'Employee number/group and password are required.'}), 400
+    user = user_auth.authenticate(identity, password)
     if user:
         return jsonify({
             'success':      True,
-            'name':         user.get('name', group),
+            'name':         user.get('name', identity),
             'employee_num': user.get('employee_num')
         })
     return jsonify({'success': False, 'message': 'Invalid credentials.'}), 401
@@ -213,19 +212,13 @@ def api_change_password():
         return jsonify({'success': False, 'message': 'New passwords do not match.'}), 400
 
     if te_user:
-        group = te_user['group']
-        badge = te_user.get('badge') or old_password  # badge doubles as current password
-        ok, msg = user_auth.change_password(group, badge, old_password, new_password,
+        identity = te_user['employee_num']
+        ok, msg = user_auth.change_password(identity, old_password, new_password,
                                              db_session_fn=get_te_session)
-        if ok:
-            session['te_user']['badge'] = new_password  # keep session current
     else:
-        group = pe_user['group']
-        badge = pe_user.get('badge') or old_password
-        ok, msg = user_auth.change_password(group, badge, old_password, new_password,
+        identity = pe_user['employee_num']
+        ok, msg = user_auth.change_password(identity, old_password, new_password,
                                              db_session_fn=get_pe_session)
-        if ok:
-            session['pe_user']['badge'] = new_password
 
     return jsonify({'success': ok, 'message': msg}), (200 if ok else 400)
 
@@ -508,4 +501,4 @@ if __name__ == '__main__':
         ensure_indexes()
     except Exception:
         pass
-    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
