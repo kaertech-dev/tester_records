@@ -153,7 +153,7 @@
         };
 
         if (sessionUser.employee_num) {
-            picEmailInput.value        = sessionUser.group;
+            picEmailInput.value        = sessionUser.employee_num; // or sessionUser.group, they are the same for TE users
             picPasswordInput.value     = '••••••••';   // visual placeholder only
             picPasswordInput.disabled  = true;
             btnAuthPic.disabled        = true;
