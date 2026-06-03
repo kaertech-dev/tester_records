@@ -132,3 +132,26 @@ window.addEventListener('DOMContentLoaded', () => {
     clearSelect(modelSelect, 'Select product first…');
     clearSelect(stationSelect, 'Select model first…');
 });
+async function loadClassifications() {
+        const select = document.getElementById('classification');
+        try {
+            const res  = await fetch('/api/classifications');
+            const data = await res.json();
+            select.innerHTML = '<option value="" disabled selected>Select a classification…</option>';
+            data.forEach(c => {
+                const opt   = document.createElement('option');
+                opt.value   = c;
+                opt.textContent = c;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('Failed to load classifications:', err);
+            select.innerHTML = '<option value="" disabled selected>Failed to load…</option>';
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        clearSelect(modelSelect, 'Select product first…');
+        clearSelect(stationSelect, 'Select model first…');
+        loadClassifications();  // ← add this
+    });

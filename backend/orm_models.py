@@ -29,6 +29,11 @@ class TesterCredential(Base):
     tester_code = Column(String(50), primary_key=True)
     tester_name = Column(String(100))
 
+class TesterClassification(Base):
+    __tablename__ = 'classification'
+
+    classification = Column(String(50), primary_key=True)
+
 class User(Base):
     __tablename__ = 'userv2'
     

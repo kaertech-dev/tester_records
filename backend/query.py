@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from sqlalchemy import text
 from backend.database import projects_engine, get_te_session, get_pe_session
-from backend.orm_models import TesterRecord, TesterCredential, User, ProcessCredential, ProcessRecord
+from backend.orm_models import TesterRecord, TesterCredential, User, ProcessCredential, ProcessRecord, TesterClassification
 import bcrypt
 
 _CACHE = {
@@ -69,15 +69,18 @@ class Model:
                 return []
             names = [r[0] for r in rows]
             prefix = model_name + '_'
+            
+            _OLD_SUFFIXES = ('_old', '_old2', '_copy', '_2', 'old','oldv2', '_tochange', 'progtest(old)')
+            
             stations = sorted(set(
                 n[len(prefix):] for n in names
                 if n.startswith(prefix)
+                and not n[len(prefix):].lower().endswith(_OLD_SUFFIXES)  # ← filter here
             ))
             return [{'id': s, 'name': s} for s in stations]
         except Exception as e:
             print(f"[Model] stations for '{schemadb}'.'{model_name}': {e}")
             return []
-
 
 # ── ActiveProjects ────────────────────────────────────────────────────────────
 
@@ -211,31 +214,18 @@ class TesterRecords:
     # ── Write methods ─────────────────────────────────────────────
 
     def create_transaction(self, data: dict):
-        def _parse_dt(val):
-            if not val:
-                return None
-            try:
-                return datetime.fromisoformat(val)
-            except ValueError:
-                return None
-
-        with get_pe_session() as session:
-            new_record = ProcessRecord(
-                asset_id       = data.get('asset_id', '').strip(),
-                asset_name     = data.get('asset_name', '').strip(),
-                line_no        = data.get('line_no', '').strip(),
-                classification = data.get('classification', '').strip(),  # ← fixed
-                equip_down     = _parse_dt(data.get('equip_down')),
-                datetime_start = _parse_dt(data.get('datetime_start')),  # ← fixed
-                datetime_end   = _parse_dt(data.get('datetime_end')),    # ← fixed
-                description    = data.get('description', '').strip(),
-                action_taken   = data.get('action_taken', '').strip(),   # ← fixed
-                remarks        = data.get('remarks', '').strip(),        # ← fixed
-                pic            = data.get('pic', '').strip(),            # ← fixed
-                logged_by      = data.get('logged_by', '').strip(),
+        with get_te_session() as session:          
+            new_record = TesterRecord(             
+                tester_code    = data.get('tester_code', '').strip(),
+                tester_name    = data.get('tester_name', '').strip(),
+                classification = data.get('classification', '').strip(),
+                pic            = data.get('person_in_charge', '').strip(),
+                issues         = data.get('issues', '').strip(),
+                datetime_start = datetime.now(),
+                remarks        = 'open',
             )
             session.add(new_record)
-        _CACHE['process_records'] = (None, 0)
+        _CACHE['tester_records'] = (None, 0)
  
     def close_transaction(self, transaction_id: int, action_taken: str = ''):
         try:
@@ -256,7 +246,11 @@ class TesterRecords:
         except Exception as e:
             print(f"[close_transaction] {e}")
             return False, str(e)
-
+    def get_classifications(self):
+        with get_te_session() as session:
+            rows = session.query(TesterClassification).order_by(TesterClassification.classification).all()
+            return [r.classification for r in rows]
+        
 class ProcessRecords:
     """All queries against pe.process_records and pe.process_credential."""
 

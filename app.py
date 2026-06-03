@@ -463,6 +463,14 @@ def ai_summarize():
         return jsonify({'error': 'Request timed out — try a smaller date range.'}), 504
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/classifications')
+def api_classifications():
+    try:
+        classifications = tester_records.get_classifications()
+        return jsonify(classifications)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
     
 if __name__ == '__main__':
     try:
