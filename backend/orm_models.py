@@ -30,7 +30,7 @@ class TesterCredential(Base):
     tester_name = Column(String(100))
 
 class User(Base):
-    __tablename__ = 'user'
+    __tablename__ = 'userv2'
     
     employee_num = Column(String(50), primary_key=True)
     name = Column(String(100))
@@ -48,16 +48,14 @@ class ProcessRecord(Base):
         asset_id = Column(String(50))
         asset_name = Column(String(100))
         line_no = Column(String(50))
-        description = Column(String(255))
-        analysis = Column(String(255))
-        corrective_action = Column(String(255))
-        verification_result = Column(String(50))
+        classification = Column(String(50))
         equip_down = Column(DateTime)
-        repair_start = Column(DateTime)
-        repair_end = Column(DateTime)
-        troubleshoot_by = Column(String(100))
-        retention_period = Column(String(50))
-        effective_date = Column(Date)
+        datetime_start = Column(DateTime)
+        datetime_end = Column(DateTime)
+        description = Column(String(255))
+        action_taken = Column(String(255))
+        remarks = Column(String(10))
+        pic = Column(String(50))
         logged_by           = Column(String(50))
 
 class ProcessCredential(Base):
