@@ -236,7 +236,7 @@ class TesterRecords:
             )
             session.add(new_record)
         _CACHE['process_records'] = (None, 0)
-
+ 
     def close_transaction(self, transaction_id: int, action_taken: str = ''):
         try:
             with get_te_session() as session:

@@ -385,7 +385,7 @@ def process_asset_lookup():
         'asset_id':   row['asset_id'],
         'asset_name': row['asset_name'],
     })
-
+ 
 @app.route('/api/pe-users')
 def pe_users_search():
     query = request.args.get('q', '').strip()

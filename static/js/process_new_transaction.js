@@ -206,7 +206,7 @@ function validateForm() {
     if (equipDown && datetimeStart && datetimeStart < equipDown) {
         alert('Repair Start cannot be before Equipment Down time.');
         return false;
-    }
+    } 
     if (datetimeStart && datetimeEnd && datetimeEnd < datetimeStart) {
         alert('Repair End cannot be before Repair Start time.');
         return false;

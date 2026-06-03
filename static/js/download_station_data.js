@@ -393,7 +393,7 @@
       `Please provide a clear, structured analysis. Use tables or lists where helpful.`
     );
   }
-
+ 
   /**
    * Render AI text with simple markdown-lite formatting inside the modal.
    */

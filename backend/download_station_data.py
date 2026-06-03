@@ -610,7 +610,7 @@ def download_station_data():
     mode    = (body.get('mode')       or 'today').strip()
     ai_summary = (body.get('ai_summary') or '').strip()   # ← NEW
     ai_prompt  = (body.get('ai_prompt')  or '').strip()   # ← NEW
-
+ 
     if not station:
         return jsonify({'error': 'station is required'}), 400
 
