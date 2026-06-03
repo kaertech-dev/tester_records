@@ -81,13 +81,15 @@
       const res  = await fetch('/api/stations-list');
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Failed to load');
-      stationSel.innerHTML = '<option value="">— Select station —</option>';
+      stationSel.innerHTML = `
+        <option value="">— Select station —</option>
+        <option value="__all__" title="May be slow for large date ranges">★ All Stations</option>
+      `;
       data.forEach(s => {
         const opt = document.createElement('option');
         opt.value = opt.textContent = s;
         stationSel.appendChild(opt);
       });
-      stationsLoaded = true;
     } catch (err) {
       stationSel.innerHTML = '<option value="">Error loading stations</option>';
       setStatus(`⚠ ${err.message}`, 'error');

@@ -164,6 +164,7 @@ body {
 .field-group input[type="date"],
 .field-group input[type="datetime-local"],
 .field-group input[type="password"],
+.field-group select,
 .field-group textarea,
 .asset-row input,
 .search-row input {

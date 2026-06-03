@@ -211,18 +211,31 @@ class TesterRecords:
     # ── Write methods ─────────────────────────────────────────────
 
     def create_transaction(self, data: dict):
-        with get_te_session() as session:
-            new_record = TesterRecord(
-                tester_code=data.get('tester_code'),
-                tester_name=data.get('tester_name'),
-                classification=data.get('classification'),
-                datetime_start=datetime.now(),
-                pic=data.get('person_in_charge'),
-                issues=data.get('issues', ''),
-                remarks='open'
+        def _parse_dt(val):
+            if not val:
+                return None
+            try:
+                return datetime.fromisoformat(val)
+            except ValueError:
+                return None
+
+        with get_pe_session() as session:
+            new_record = ProcessRecord(
+                asset_id       = data.get('asset_id', '').strip(),
+                asset_name     = data.get('asset_name', '').strip(),
+                line_no        = data.get('line_no', '').strip(),
+                classification = data.get('classification', '').strip(),  # ← fixed
+                equip_down     = _parse_dt(data.get('equip_down')),
+                datetime_start = _parse_dt(data.get('datetime_start')),  # ← fixed
+                datetime_end   = _parse_dt(data.get('datetime_end')),    # ← fixed
+                description    = data.get('description', '').strip(),
+                action_taken   = data.get('action_taken', '').strip(),   # ← fixed
+                remarks        = data.get('remarks', '').strip(),        # ← fixed
+                pic            = data.get('pic', '').strip(),            # ← fixed
+                logged_by      = data.get('logged_by', '').strip(),
             )
             session.add(new_record)
-        _CACHE['tester_records'] = (None, 0)   # bust cache
+        _CACHE['process_records'] = (None, 0)
 
     def close_transaction(self, transaction_id: int, action_taken: str = ''):
         try:
@@ -343,33 +356,23 @@ class ProcessRecords:
             except ValueError:
                 return None
 
-        def _parse_date(val):
-            if not val:
-                return None
-            try:
-                return datetime.strptime(val, '%Y-%m-%d').date()
-            except ValueError:
-                return None
-
         with get_pe_session() as session:
             new_record = ProcessRecord(
-                asset_id           = data.get('asset_id', '').strip(),
-                asset_name         = data.get('asset_name', '').strip(),
-                line_no            = data.get('line_no', '').strip(),
-                description        = data.get('description', '').strip(),
-                analysis           = data.get('analysis', '').strip(),
-                corrective_action  = data.get('corrective_action', '').strip(),
-                verification_result= data.get('verification_result', '').strip(),
-                equip_down    = _parse_dt(data.get('equip_down')),
-                repair_start       = _parse_dt(data.get('repair_start')),
-                repair_end         = _parse_dt(data.get('repair_end')),
-                troubleshoot_by    = data.get('troubleshoot_by', '').strip(),
-                retention_period   = data.get('retention_period', '').strip(),
-                effective_date     = _parse_date(data.get('effective_date')),
-                logged_by           = data.get('logged_by', '').strip(),
+                asset_id       = data.get('asset_id', '').strip(),
+                asset_name     = data.get('asset_name', '').strip(),
+                line_no        = data.get('line_no', '').strip(),
+                classification = data.get('classification', '').strip(),
+                equip_down     = _parse_dt(data.get('equip_down')),
+                datetime_start = _parse_dt(data.get('datetime_start')),
+                datetime_end   = _parse_dt(data.get('datetime_end')),
+                description    = data.get('description', '').strip(),
+                action_taken   = data.get('action_taken', '').strip(),
+                remarks        = data.get('remarks', '').strip(),
+                pic            = data.get('pic', '').strip(),
+                logged_by      = data.get('logged_by', '').strip(),
             )
             session.add(new_record)
-        _CACHE['process_records'] = (None, 0)  # bust cache
+        _CACHE['process_records'] = (None, 0)
 # ── UserAuth ──────────────────────────────────────────────────────────────────
 
 class UserAuth:
@@ -481,3 +484,32 @@ class UserAuth:
         _CACHE['users'] = (None, 0)
         _CACHE['auth']  = {}
         return True, 'Password changed successfully.'
+    
+    def authenticate_with_session(self, identity: str, password: str, db_session_fn):
+        """
+        Same as authenticate() but queries the given db_session_fn instead of
+        the TE cache. Used for PE login so bcrypt verification + auto-upgrade
+        work on that database too.
+        """
+        with db_session_fn() as session:
+            # Try employee_num first, then group
+            row = session.query(User).filter(User.employee_num == identity).first()
+            if not row:
+                row = session.query(User).filter(User.group == identity).first()
+            if not row:
+                return None
+
+            if not self._verify_badge(row.badge or '', password):
+                return None
+
+            # Upgrade plaintext → bcrypt on the PE side
+            if not self._is_hashed(row.badge or ''):
+                hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                row.badge = hashed
+                # session commits automatically via context manager
+
+            return {
+                'name':         row.name,
+                'employee_num': row.employee_num,
+                'group':        row.group,
+            }

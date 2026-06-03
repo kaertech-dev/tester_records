@@ -12,112 +12,52 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
 
     <style>
-        /* ── Multi-image upload styles ─────────────────────────────── */
-        .multi-upload-zone {
-            margin-top: 8px;
-        }
-
+        .multi-upload-zone { margin-top: 8px; }
         .upload-trigger {
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
-            cursor: pointer;
-            padding: 7px 14px;
-            border: 1.5px dashed #b0bec5;
-            border-radius: 8px;
-            color: #607d8b;
-            font-size: 13px;
-            transition: border-color .2s, color .2s, background .2s;
+            display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+            padding: 7px 14px; border: 1.5px dashed #b0bec5; border-radius: 8px;
+            color: #607d8b; font-size: 13px; transition: border-color .2s, color .2s, background .2s;
             user-select: none;
         }
-
-        .upload-trigger:hover {
-            border-color: #3B6D11;
-            color: #3B6D11;
-            background: #f1f8e9;
-        }
-
-        .upload-trigger svg {
-            flex-shrink: 0;
-        }
-
-        .img-strip {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
+        .upload-trigger:hover { border-color: #3B6D11; color: #3B6D11; background: #f1f8e9; }
+        .upload-trigger svg { flex-shrink: 0; }
+        .img-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
         .img-thumb {
-            position: relative;
-            width: 74px;
-            height: 60px;
-            border-radius: 6px;
-            overflow: hidden;
-            border: 1.5px solid #dde3ea;
-            flex-shrink: 0;
+            position: relative; width: 74px; height: 60px; border-radius: 6px;
+            overflow: hidden; border: 1.5px solid #dde3ea; flex-shrink: 0;
         }
-
-        .img-thumb img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-
+        .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .img-thumb .btn-rm {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, .55);
-            color: #fff;
-            border: none;
-            cursor: pointer;
-            font-size: 11px;
-            line-height: 18px;
-            text-align: center;
-            padding: 0;
+            position: absolute; top: 2px; right: 2px; width: 18px; height: 18px;
+            border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; border: none;
+            cursor: pointer; font-size: 11px; line-height: 18px; text-align: center; padding: 0;
         }
-
-        .img-thumb .btn-rm:hover {
-            background: #c0392b;
-        }
-
-        /* hide the real file input */
-        .file-input-hidden {
-            display: none;
-        }
+        .img-thumb .btn-rm:hover { background: #c0392b; }
+        .file-input-hidden { display: none; }
     </style>
 </head>
 
 <body>
     <div class="page-wrap">
 
-        <!-- Sticky header -->
         <header class="page-header">
             <div class="header-left">
                 <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
                     <rect width="36" height="36" rx="10" fill="#3B6D11" />
                     <path d="M10 12h16M10 18h10M10 24h13" stroke="white" stroke-width="2.5" stroke-linecap="round" />
                     <circle cx="27" cy="24" r="4" fill="white" fill-opacity=".9" />
-                    <path d="M25.5 24l1 1 2-2" stroke="#3B6D11" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round" />
+                    <path d="M25.5 24l1 1 2-2" stroke="#3B6D11" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <span class="header-title">NEW PROCESS TRANSACTION</span>
             </div>
-            
             <div class="header-right" style="display:flex; align-items:center; gap:12px;">
                 <span id="logged-in-user" style="font-size:13px; color:#fff; opacity:.85;"></span>
                 <button id="btn-logout" class="btn-back" style="background:rgba(255,255,255,.15);">Sign Out</button>
-                <a href="{{ url_for('second_window') }}" class="btn-back" id="exit-btn">← Back</a>
+                <a href="{{ url_for('process_window') }}" class="btn-back" id="exit-btn">← Back</a>
             </div>
         </header>
 
-        <!-- Main form area -->
-        <main class="form-area" id="main-form-area"">
+        <main class="form-area" id="main-form-area">
             <form id="process-transaction-form" method="POST" action="{{ url_for('process_new_transaction') }}"
                 enctype="multipart/form-data">
 
@@ -128,10 +68,10 @@
                     <div class="form-grid form-grid-2">
 
                         <div class="field-group" id="group-asset-id">
-                            <label for="asset_id">Asset ID <span class="hint">e.g. KP-0003314</span></label>
+                            <label for="asset_id">Asset ID <span class="hint">e.g. KP-0002374</span></label>
                             <div class="asset-row">
-                                <input type="text" id="asset_id" name="asset_id" placeholder="Enter asset ID…"
-                                    autocomplete="off" required>
+                                <input type="text" id="asset_id" name="asset_id"
+                                    placeholder="Enter asset ID…" autocomplete="off" required>
                                 <button type="button" id="btn-lookup-asset" class="btn-auth">Look Up</button>
                             </div>
                             <div id="asset-status" class="status-msg hidden"></div>
@@ -139,8 +79,8 @@
 
                         <div class="field-group" id="group-asset-name">
                             <label for="asset_name">Asset Name <span class="hint">auto-filled</span></label>
-                            <input type="text" id="asset_name" name="asset_name" placeholder="Auto-filled from asset ID"
-                                readonly required>
+                            <input type="text" id="asset_name" name="asset_name"
+                                placeholder="Auto-filled from asset ID" readonly required>
                         </div>
 
                         <div class="field-group" id="group-line-no">
@@ -162,73 +102,29 @@
                                 placeholder="Describe the issue or event…" required></textarea>
                         </div>
 
-                        <!-- Analysis + multi-image -->
                         <div class="field-group" id="group-analysis">
                             <label for="analysis">Analysis</label>
                             <textarea id="analysis" name="analysis" rows="2"
                                 placeholder="Root cause or analysis findings…" required></textarea>
-
                             <div class="multi-upload-zone" id="analysis-upload-zone">
-                                <!-- Hidden real input (multiple) -->
-                                <input type="file" id="analysis_images_input" name="analysis_images" accept="image/*"
-                                    multiple class="file-input-hidden">
-                                <!-- Visible trigger button -->
-                                <label for="analysis_images_input" class="upload-trigger">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect x="3" y="3" width="18" height="18" rx="3" />
-                                        <circle cx="8.5" cy="8.5" r="1.5" />
-                                        <polyline points="21 15 16 10 5 21" />
-                                    </svg>
-                                    Attach images <span class="hint" style="margin-left:4px">(optional, multiple)</span>
-                                </label>
-                                <!-- Thumbnail strip -->
+                                <input type="file" id="analysis_images_input" name="analysis_images"
+                                    accept="image/*" multiple class="file-input-hidden">
                                 <div class="img-strip" id="analysis-strip"></div>
                             </div>
                         </div>
 
-                        <!-- Corrective Action + multi-image -->
-                        <div class="field-group" id="group-corrective-action">
-                            <label for="corrective_action">Corrective Action</label>
-                            <textarea id="corrective_action" name="corrective_action" rows="2"
+                        <!-- corrective_action → action_taken -->
+                        <div class="field-group" id="group-action-taken">
+                            <label for="action_taken">Corrective Action</label>
+                            <textarea id="action_taken" name="action_taken" rows="2"
                                 placeholder="Steps taken to correct the problem…" required></textarea>
-
-                            <div class="multi-upload-zone" id="corrective-upload-zone">
-                                <input type="file" id="corrective_images_input" name="corrective_action_images"
-                                    accept="image/*" multiple class="file-input-hidden">
-                                <label for="corrective_images_input" class="upload-trigger">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect x="3" y="3" width="18" height="18" rx="3" />
-                                        <circle cx="8.5" cy="8.5" r="1.5" />
-                                        <polyline points="21 15 16 10 5 21" />
-                                    </svg>
-                                    Attach images <span class="hint" style="margin-left:4px">(optional, multiple)</span>
-                                </label>
-                                <div class="img-strip" id="corrective-strip"></div>
-                            </div>
                         </div>
 
-                        <!-- Verification Result + multi-image -->
-                        <div class="field-group" id="group-verification-result">
-                            <label for="verification_result">Verification Result</label>
-                            <input type="text" id="verification_result" name="verification_result"
+                        <!-- verification_result → remarks -->
+                        <div class="field-group" id="group-remarks">
+                            <label for="remarks">Verification Result</label>
+                            <input type="text" id="remarks" name="remarks"
                                 placeholder="e.g. PASS / FAIL / OK" autocomplete="off" required>
-
-                            <div class="multi-upload-zone" id="verification-upload-zone">
-                                <input type="file" id="verification_images_input" name="verification_images"
-                                    accept="image/*" multiple class="file-input-hidden">
-                                <label for="verification_images_input" class="upload-trigger">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect x="3" y="3" width="18" height="18" rx="3" />
-                                        <circle cx="8.5" cy="8.5" r="1.5" />
-                                        <polyline points="21 15 16 10 5 21" />
-                                    </svg>
-                                    Attach images <span class="hint" style="margin-left:4px">(optional, multiple)</span>
-                                </label>
-                                <div class="img-strip" id="verification-strip"></div>
-                            </div>
                         </div>
 
                     </div>
@@ -244,14 +140,16 @@
                             <input type="datetime-local" id="equip_down" name="equip_down" required>
                         </div>
 
-                        <div class="field-group" id="group-repair-start">
-                            <label for="repair_start">Repair Start</label>
-                            <input type="datetime-local" id="repair_start" name="repair_start" required>
+                        <!-- repair_start → datetime_start -->
+                        <div class="field-group" id="group-datetime-start">
+                            <label for="datetime_start">Repair Start</label>
+                            <input type="datetime-local" id="datetime_start" name="datetime_start" required>
                         </div>
 
-                        <div class="field-group" id="group-repair-end">
-                            <label for="repair_end">Repair End</label>
-                            <input type="datetime-local" id="repair_end" name="repair_end" required>
+                        <!-- repair_end → datetime_end -->
+                        <div class="field-group" id="group-datetime-end">
+                            <label for="datetime_end">Repair End</label>
+                            <input type="datetime-local" id="datetime_end" name="datetime_end" required>
                         </div>
 
                     </div>
@@ -262,29 +160,31 @@
                     <p class="section-title">Assignment &amp; Compliance</p>
                     <div class="form-grid form-grid-2">
 
-                        <div class="field-group" id="group-troubleshoot-by">
-                            <label for="troubleshoot_search">Troubleshoot By <span class="hint">search PE
-                                    user</span></label>
+                        <!-- troubleshoot_by → pic -->
+                        <div class="field-group" id="group-pic">
+                            <label for="pic_search">Troubleshoot By <span class="hint">search PE user</span></label>
                             <div class="search-row">
-                                <input type="text" id="troubleshoot_search" placeholder="Type name or group…"
+                                <input type="text" id="pic_search" placeholder="Type name or group…"
                                     autocomplete="off">
-                                <div id="troubleshoot-dropdown" class="search-dropdown hidden"></div>
+                                <div id="pic-dropdown" class="search-dropdown hidden"></div>
                             </div>
-                            <input type="hidden" id="troubleshoot_by" name="troubleshoot_by" required>
-                            <div id="troubleshoot-status" class="status-msg hidden"></div>
+                            <input type="hidden" id="pic" name="pic" required>
+                            <div id="pic-status" class="status-msg hidden"></div>
                         </div>
-
-                        <div class="field-group" id="group-effective-date">
-                            <label for="effective_date">Effective Date</label>
-                            <input type="date" id="effective_date" name="effective_date" required>
+                        
+                        <div class="field-group" id="group-classification">
+                            <label for="classification">Classification</label>
+                            <select id="classification" name="classification" required>
+                                <option value="" disabled selected>Select a classification…</option>
+                                <option value="CALIBRATION">Calibration</option>
+                                <option value="CORRECTIVE MAINTENANCE">Corrective Maintenance</option>
+                                <option value="DEPLOYMENT">Deployment</option>
+                                <option value="PREVENTIVE MAINTENANCE">Preventive Maintenance</option>
+                                <option value="REPAIR">Repair</option>
+                                <option value="SETUP">Setup</option>
+                                <option value="START UP">Start Up</option>
+                            </select>
                         </div>
-
-                        <div class="field-group" id="group-retention-period">
-                            <label for="retention_period">Retention Period</label>
-                            <input type="text" id="retention_period" name="retention_period" placeholder="e.g. 3 years"
-                                autocomplete="off" required>
-                        </div>
-
                     </div>
 
                     <!-- Form actions -->
@@ -309,14 +209,13 @@
                             </svg>
                             Submit Data
                         </button>
-                        <a href="{{ url_for('second_window') }}" class="btn-cancel" id="cancel-btn">Cancel</a>
+                        <a href="{{ url_for('process_window') }}" class="btn-cancel" id="cancel-btn">Cancel</a>
                     </div>
 
                 </div>
-
             </form>
-        </main >
-        <!-- Download overlay -->
+        </main>
+
         <div id="download-overlay" class="download-overlay hidden">
             <div class="download-spinner-box">
                 <div class="spinner"></div>
@@ -328,5 +227,4 @@
 
     <script src="{{ url_for('static', filename='js/process_new_transaction.js') }}"></script>
 </body>
-
 </html>

@@ -103,17 +103,25 @@ def extract_station(table_name):
         return None
     return station
 
-
 def get_tables_for_station(pool, schemas, station):
-    """Return (schema, table) pairs where station matches exactly, excluding _old tables."""
+    """
+    If station == '__all__', return every non-_old table across all schemas.
+    Otherwise return tables matching the station exactly.
+    """
     all_tables = get_all_tables_for_schemas(pool, schemas)
+
+    if station == '__all__':
+        return [
+            (schema, table)
+            for schema, table in all_tables
+            if extract_station(table) is not None   # excludes _old tables
+        ]
+
     return [
         (schema, table)
         for schema, table in all_tables
         if extract_station(table) == station
     ]
-
-
 def detect_datetime_column(conn, schema, table):
     """
     Detect the best datetime column to filter on.
@@ -145,14 +153,16 @@ def fetch_table_data_filtered(pool, schema, table, date_from, date_to):
         dt_col = detect_datetime_column(conn, schema, table)
         cursor = conn.cursor()
 
-        if dt_col:
-            cursor.execute(f"""
-                SELECT * FROM `{schema}`.`{table}`
-                WHERE `{dt_col}` >= %s AND `{dt_col}` < %s
-                ORDER BY `{dt_col}` DESC
-            """, (date_from, date_to))
-        else:
-            cursor.execute(f"SELECT * FROM `{schema}`.`{table}`")
+        if not dt_col:
+            cursor.close()
+            tprint(f"  ⚠  {schema}.{table}  (no datetime column — skipped)")
+            return schema, table, [], []
+
+        cursor.execute(f"""
+            SELECT * FROM `{schema}`.`{table}`
+            WHERE `{dt_col}` >= %s AND `{dt_col}` < %s
+            ORDER BY `{dt_col}` DESC
+        """, (date_from, date_to))
 
         columns = [desc[0] for desc in cursor.description]
         rows = []
@@ -514,7 +524,8 @@ def preview_station_data():
         matches = get_tables_for_station(pool, schemas, station)
 
         if not matches:
-            return jsonify({'error': f'No tables found for station "{station}"'}), 404
+            label = "all stations" if station == '__all__' else f'station "{station}"'
+            return jsonify({'error': f'No tables found for {label}'}), 404
 
         results = {}
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -538,6 +549,8 @@ def preview_station_data():
             if (schema, table) not in results:
                 continue
             columns, rows = results[(schema, table)]
+            if not rows:
+                continue
             total_rows += len(rows)
 
             def serialize(v):
@@ -570,7 +583,7 @@ def preview_station_data():
             return jsonify({'error': 'No data found for the selected station and date range.'}), 404
 
         return jsonify({
-            'station':      station,
+            'station':      'All Stations' if station == '__all__' else station,
             'date_from':    date_from.strftime('%Y-%m-%d'),
             'date_to':      (date_to - timedelta(days=1)).strftime('%Y-%m-%d'),
             'total_rows':   total_rows,
@@ -612,7 +625,9 @@ def download_station_data():
         matches = get_tables_for_station(pool, schemas, station)
 
         if not matches:
-            return jsonify({'error': f'No tables found for station "{station}"'}), 404
+            label = "all stations" if station == '__all__' else f'station "{station}"'
+            return jsonify({'error': f'No tables found for {label}'}), 404
+
 
         results = {}
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -633,7 +648,7 @@ def download_station_data():
         tables_data = [
             (schema, table, *results[(schema, table)])
             for schema, table in matches
-            if (schema, table) in results
+            if (schema, table) in results and len(results[(schema, table)][1]) > 0
         ]
 
         total_rows = sum(len(r[3]) for r in tables_data)
@@ -647,8 +662,9 @@ def download_station_data():
             ai_prompt=ai_prompt   or None,
         )
 
+        station_label = 'all_stations' if station == '__all__' else station
         filename = (
-            f"{station}_{date_from.strftime('%Y%m%d')}"
+            f"{station_label}_{date_from.strftime('%Y%m%d')}"
             f"_to_{(date_to - timedelta(days=1)).strftime('%Y%m%d')}.xlsx"
         )
         return send_file(
