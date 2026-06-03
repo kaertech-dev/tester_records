@@ -9,11 +9,11 @@ from contextlib import contextmanager
 load_dotenv()
 
 # --- te database configuration ---
-db_host = os.getenv("DB_HOST", "192.168.1.38")
-db_port = os.getenv("DB_PORT", "3306")
-db_user = os.getenv("DB_USER", "labeling")
-db_pass = os.getenv("DB_PASSWORD", "labeling")
-db_name = os.getenv("DB_NAME", "te")
+db_host=os.getenv("DB_HOST", "192.168.1.38")
+db_port=os.getenv("DB_PORT", "3306")
+db_user=os.getenv("DB_USER", "labeling")
+db_pass=os.getenv("DB_PASSWORD", "labeling")
+db_name=os.getenv("DB_NAME", "te")
 
 te_url = URL.create(
     drivername="mysql+pymysql",
@@ -55,11 +55,11 @@ except Exception:
 TeSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=te_engine)
 
 # --- projectsdb database configuration ---
-proj_host = os.getenv("PROJECTS_DB_HOST", "192.168.1.38")
-proj_port = os.getenv("PROJECTS_DB_PORT", "3306")
-proj_user = os.getenv("PROJECTS_DB_USER", "readonly_user")
-proj_pass = os.getenv("PROJECTS_DB_PASSWORD", "kts@tsd2025")
-proj_name = os.getenv("PROJECTS_DB_NAME", "projectsdb")
+proj_host=os.getenv("PROJECTS_DB_HOST", "192.168.1.38")
+proj_port=os.getenv("PROJECTS_DB_PORT", "3306")
+proj_user=os.getenv("PROJECTS_DB_USER", "readonly_user")
+proj_pass=os.getenv("PROJECTS_DB_PASSWORD", "kts@tsd2025")
+proj_name=os.getenv("PROJECTS_DB_NAME", "projectsdb")
 
 projects_url = URL.create(
     drivername="mysql+pymysql",
@@ -108,11 +108,11 @@ def get_projects_session():
         session.close()
 
 # ---process database configuration---
-process_db_host = os.getenv("PROCESS_DB_HOST", "192.168.1.38")
-process_db_port = os.getenv("PROCESS_DB_PORT", "3306")
-process_db_user = os.getenv("PROCESS_DB_USER", "labeling")
-process_db_pass = os.getenv("PROCESS_DB_PASSWORD", "labeling")
-process_db_name = os.getenv("PROCESS_DB_NAME", "pe")
+process_db_host=os.getenv("PROCESS_DB_HOST", "192.168.1.38")
+process_db_port=os.getenv("PROCESS_DB_PORT", "3306")
+process_db_user=os.getenv("PROCESS_DB_USER", "labeling")
+process_db_pass=os.getenv("PROCESS_DB_PASSWORD", "labeling")
+process_db_name=os.getenv("PROCESS_DB_NAME", "pe")
 
 process_url = URL.create(
     drivername="mysql+pymysql",
