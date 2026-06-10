@@ -760,3 +760,120 @@
 .stn-status--loading { color: #60a5fa; }
 .stn-status--success { color: #4ade80; }
 .stn-status--error   { color: #f87171; }
+
+.stn-dl-progress-wrap {
+    margin-top: 12px;
+    background: #0f172a;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+.stn-dl-progress-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-bottom: 10px;
+}
+.stn-dl-progress-bar-wrap {
+    background: #1e293b;
+    border-radius: 99px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+.stn-dl-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #1d4ed8, #4ade80);
+    border-radius: 99px;
+    transition: width 0.3s ease;
+}
+.stn-dl-progress-label {
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 8px;
+}
+.stn-dl-log {
+    max-height: 140px;
+    overflow-y: auto;
+    font-size: 10px;
+    font-family: monospace;
+    color: #475569;
+    line-height: 1.6;
+}
+.stn-dl-log-entry { color: #22c55e; }
+.stn-dl-log-error { color: #f87171; }
+
+.stn-modal-wide {
+  display:        flex;
+  flex-direction: column;
+  max-height:     90vh;        /* never taller than 90% of viewport */
+  overflow:       hidden;      /* clip — inner sections scroll */
+}
+ 
+/* ── The preview wrap scrolls independently ───────────────────────────── */
+#stn-preview-wrap {
+  overflow-y:  auto;
+  overflow-x:  hidden;
+  max-height:  420px;          /* tall enough to show charts + a few rows  */
+  padding-right: 4px;          /* room for the scrollbar */
+ 
+  /* thin custom scrollbar (webkit) */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74,222,128,0.4) transparent;
+}
+ 
+#stn-preview-wrap::-webkit-scrollbar {
+  width: 5px;
+}
+#stn-preview-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+#stn-preview-wrap::-webkit-scrollbar-thumb {
+  background:    rgba(74, 222, 128, 0.35);
+  border-radius: 99px;
+}
+#stn-preview-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 222, 128, 0.60);
+}
+ 
+/* ── Data table wrapper — horizontal scroll for wide tables ───────────── */
+.stn-table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  width:      100%;
+ 
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74,222,128,0.3) transparent;
+}
+ 
+.stn-table-wrap::-webkit-scrollbar {
+  height: 5px;
+}
+.stn-table-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+.stn-table-wrap::-webkit-scrollbar-thumb {
+  background:    rgba(74, 222, 128, 0.30);
+  border-radius: 99px;
+}
+.stn-table-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 222, 128, 0.55);
+}
+ 
+/* ── Progress wrap (download log) also scrollable ─────────────────────── */
+#stn-dl-progress {
+  max-height:  260px;
+  overflow-y:  auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74,222,128,0.3) transparent;
+}
+ 
+.stn-dl-log {
+  max-height:  120px;
+  overflow-y:  auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74,222,128,0.2) transparent;
+}
