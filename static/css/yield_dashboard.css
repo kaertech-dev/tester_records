@@ -1,0 +1,95 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Yield Dashboard  —  append to static/css/download_data.css
+   (or import as a separate file in second_window.html)
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Wrapper ─────────────────────────────────────────────────────────────── */
+.stn-yield-dashboard {
+  background:    rgba(255, 255, 255, 0.03);
+  border:        1px solid rgba(74, 222, 128, 0.20);
+  border-radius: 10px;
+  padding:       14px 16px 10px;
+  margin-bottom: 16px;
+}
+
+/* ── Section header ──────────────────────────────────────────────────────── */
+.stn-yield-header {
+  display:     flex;
+  align-items: center;
+  gap:         7px;
+  font-size:   13px;
+  font-weight: 600;
+  color:       #4ade80;
+  margin-bottom: 12px;
+  letter-spacing: 0.03em;
+}
+
+/* ── KPI cards row ───────────────────────────────────────────────────────── */
+.stn-yield-kpis {
+  display:               grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:                   10px;
+  margin-bottom:         14px;
+}
+
+@media (max-width: 640px) {
+  .stn-yield-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+
+.stn-yield-kpi {
+  background:    rgba(255, 255, 255, 0.04);
+  border:        1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  padding:       10px 12px;
+  display:       flex;
+  flex-direction: column;
+  gap:            4px;
+  transition:    border-color 0.2s;
+}
+
+.stn-yield-kpi-label {
+  font-size:  11px;
+  color:      #9ca3af;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.stn-yield-kpi-value {
+  font-size:   22px;
+  font-weight: 700;
+  color:       #f3f4f6;
+  line-height: 1.1;
+}
+
+/* ── Charts row ──────────────────────────────────────────────────────────── */
+.stn-yield-charts {
+  display:               grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap:                   12px;
+  margin-bottom:         12px;
+}
+
+.stn-yield-chart-box {
+  background:    rgba(255, 255, 255, 0.03);
+  border:        1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  padding:       10px 12px 8px;
+}
+
+.stn-yield-chart-title {
+  font-size:     11px;
+  font-weight:   600;
+  color:         #9ca3af;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Fail reasons bar ────────────────────────────────────────────────────── */
+.stn-yield-fails {
+  background:    rgba(255, 255, 255, 0.03);
+  border:        1px solid rgba(239, 68, 68, 0.15);
+  border-radius: 8px;
+  padding:       10px 12px 8px;
+  margin-top:    4px;
+}

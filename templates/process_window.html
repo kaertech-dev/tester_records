@@ -15,6 +15,7 @@
 
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kaertech_logo192.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/download_data.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/yield_dashboard.css') }}">
 </head>
 
 <body>
@@ -213,6 +214,14 @@
             <!-- ── Filter row: station + date tabs side by side ── -->
             <div class="stn-filter-row">
          
+                <!-- Database selector -->
+                <div class="stn-filter-station">
+                    <label class="dl-label" for="stn-database">Customer/Model</label>
+                    <select class="dl-inputs" id="stn-database">
+                        <option value="">— All databases —</option>
+                    </select>
+                </div>
+
                 <!-- Station selector -->
                 <div class="stn-filter-station">
                     <label class="dl-label" for="stn-station">Station</label>
