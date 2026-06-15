@@ -102,7 +102,7 @@
                                 placeholder="Describe the issue or event…" required></textarea>
                         </div>
 
-                        <div class="field-group" id="group-analysis">
+                        <!-- <div class="field-group" id="group-analysis">
                             <label for="analysis">Analysis</label>
                             <textarea id="analysis" name="analysis" rows="2"
                                 placeholder="Root cause or analysis findings…" required></textarea>
@@ -111,7 +111,7 @@
                                     accept="image/*" multiple class="file-input-hidden">
                                 <div class="img-strip" id="analysis-strip"></div>
                             </div>
-                        </div>
+                        </div> -->
 
                         <!-- corrective_action → action_taken -->
                         <div class="field-group" id="group-action-taken">
@@ -123,8 +123,16 @@
                         <!-- verification_result → remarks -->
                         <div class="field-group" id="group-remarks">
                             <label for="remarks">Verification Result</label>
-                            <input type="text" id="remarks" name="remarks"
-                                placeholder="e.g. PASS / FAIL / OK" autocomplete="off" required>
+                            <select id="classification" name="classification" required>
+                                <option value="" disabled selected>Select…</option>
+                                <option value="CALIBRATION">PASS</option>
+                                <option value="CORRECTIVE MAINTENANCE">FAIL</option>
+                                <option value="DEPLOYMENT">GOOD</option>
+                                <!-- <option value="PREVENTIVE MAINTENANCE">Preventive Maintenance</option>
+                                <option value="REPAIR">Repair</option>
+                                <option value="SETUP">Setup</option>
+                                <option value="START UP">Start Up</option> -->
+                            </select>
                         </div>
 
                     </div>
@@ -136,19 +144,19 @@
                     <div class="form-grid form-grid-3">
 
                         <div class="field-group" id="group-equip-down">
-                            <label for="equip_down">Equipment Down</label>
+                            <label for="equip_down">Due Date</label>
                             <input type="datetime-local" id="equip_down" name="equip_down" required>
                         </div>
 
                         <!-- repair_start → datetime_start -->
                         <div class="field-group" id="group-datetime-start">
-                            <label for="datetime_start">Repair Start</label>
+                            <label for="datetime_start">Datetime Start</label>
                             <input type="datetime-local" id="datetime_start" name="datetime_start" required>
                         </div>
 
                         <!-- repair_end → datetime_end -->
                         <div class="field-group" id="group-datetime-end">
-                            <label for="datetime_end">Repair End</label>
+                            <label for="datetime_end">Datetime End</label>
                             <input type="datetime-local" id="datetime_end" name="datetime_end" required>
                         </div>
 
@@ -162,7 +170,7 @@
 
                         <!-- troubleshoot_by → pic -->
                         <div class="field-group" id="group-pic">
-                            <label for="pic_search">Troubleshoot By <span class="hint">search PE user</span></label>
+                            <label for="pic_search">PIC <span class="hint">search PE user</span></label>
                             <div class="search-row">
                                 <input type="text" id="pic_search" placeholder="Type name or group…"
                                     autocomplete="off">
@@ -189,7 +197,7 @@
  
                     <!-- Form actions -->
                     <div class="form-actions">
-                        <button type="submit" id="btn-create" class="btn-create">
+                        <!-- <button type="submit" id="btn-create" class="btn-create">
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
                                 style="margin-right:6px;vertical-align:-3px">
@@ -198,7 +206,7 @@
                                 <line x1="12" y1="15" x2="12" y2="3" />
                             </svg>
                             Download Report
-                        </button>
+                        </button> -->
                         <button id="submit-data" type="button" class="btn-create">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
