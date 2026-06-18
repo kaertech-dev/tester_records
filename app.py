@@ -13,6 +13,7 @@ import requests as http_requests
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 app.register_blueprint(station_bp)
+app.register_blueprint(download_bp)
 
 active_projects  = ActiveProjects()
 tester_records   = TesterRecords()

@@ -199,8 +199,24 @@
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `Server error ${res.status}`);
+
+      const text = await res.text();
+      let data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+      }
+
+      if (!res.ok) {
+        const message = data?.error || text || `Server error ${res.status}`;
+        throw new Error(message);
+      }
+      if (!data || data.error) {
+        throw new Error(data?.error || 'Invalid response from server.');
+      }
 
       lastPayload     = payload;
       previewData     = data;

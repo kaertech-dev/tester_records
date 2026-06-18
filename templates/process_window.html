@@ -332,7 +332,7 @@
     <script>
         document.getElementById('exit-btn')?.addEventListener('click', async () => {
             await fetch('/api/logout', { method: 'POST' });
-            window.location.href = '/';
+            window.location.href = '/traceability';
         });
         const dot = document.getElementById('cursor-dot');
         const ring = document.getElementById('cursor-ring');

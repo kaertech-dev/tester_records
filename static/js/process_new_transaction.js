@@ -3,7 +3,7 @@
 // ── Logout ────────────────────────────────────────────────────────────────────
 document.getElementById('btn-logout')?.addEventListener('click', async () => {
     await fetch('/api/logout', { method: 'POST' });
-    window.location.href = '/';
+    window.location.href = '/traceability';
 });
 
 // ── Asset ID Look Up ──────────────────────────────────────────────────────────
