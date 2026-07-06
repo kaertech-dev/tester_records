@@ -567,7 +567,7 @@ def _add_ai_sheet(wb, prompt: str, summary: str) -> None:
 
 # ── Flask routes ──────────────────────────────────────────────────────────────
 
-@station_bp.route('/api/active-databases')
+@station_bp.route('/traceability/api/active-databases')
 def active_databases():
     try:
         pool    = get_pool()
@@ -577,7 +577,7 @@ def active_databases():
         return jsonify({'error': str(e)}), 500
 
 
-@station_bp.route('/api/stations-list')
+@station_bp.route('/traceability/api/stations-list')
 def stations_list():
     try:
         pool      = get_pool()
@@ -594,7 +594,7 @@ def stations_list():
         return jsonify({'error': str(e)}), 500
 
 
-@station_bp.route('/api/preview-station-data', methods=['POST'])
+@station_bp.route('/traceability/api/preview-station-data', methods=['POST'])
 def preview_station_data():
     """
     Streams each table just like the download route, but only retains up
@@ -675,7 +675,7 @@ def preview_station_data():
         return jsonify({'error': str(e)}), 500
 
 
-@station_bp.route('/api/download-station-data', methods=['POST'])
+@station_bp.route('/traceability/api/download-station-data', methods=['POST'])
 def download_station_data():
     body       = request.get_json(force=True) or {}
     station    = (body.get('station')    or '').strip()
@@ -742,7 +742,7 @@ def download_station_data():
         return jsonify({'error': str(e)}), 500
 
 
-@station_bp.route('/api/download-station-data-stream', methods=['GET'])
+@station_bp.route('/traceability/api/download-station-data-stream', methods=['GET'])
 def download_station_data_stream():
     station    = request.args.get('station', '').strip()
     database   = request.args.get('database', '').strip()
@@ -809,7 +809,7 @@ def download_station_data_stream():
         with open(tmp_path, 'wb') as f:
             f.write(buf.read())
 
-        yield f"data: {json.dumps({'type': 'done', 'filename': filename, 'download_url': f'/api/download-temp/{tmp_id}', 'total_rows': total_rows, 'capped': capped})}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'filename': filename, 'download_url': f'/traceability/api/download-temp/{tmp_id}', 'total_rows': total_rows, 'capped': capped})}\n\n"
 
     return Response(
         stream_with_context(generate()),
@@ -821,7 +821,7 @@ def download_station_data_stream():
     )
 
 
-@station_bp.route('/api/download-temp/<tmp_id>')
+@station_bp.route('/traceability/api/download-temp/<tmp_id>')
 def download_temp(tmp_id):
     if not tmp_id.isalnum():
         return jsonify({'error': 'Invalid ID'}), 400

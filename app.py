@@ -24,7 +24,7 @@ process_records  = ProcessRecords()
 # Landing Page
 # ─────────────────────────────────────────────
 
-@app.route('/')
+@app.route('/traceability')
 def index():
     # If already logged in, send straight to the right window
     if session.get('system_type') == 'te':
@@ -34,14 +34,14 @@ def index():
     return render_template('selection_window.html')
 
 # this route directed to tester side
-@app.route('/first-window')
+@app.route('/traceability/first-window')
 def test_window():
     if session.get('system_type') != 'te':
         return redirect(url_for('index'))
     return render_template('test_window.html')
 
 # # this route directed to process side
-@app.route('/second-window')
+@app.route('/traceability/second-window')
 def process_window():
     if session.get('system_type') != 'pe':
         return redirect(url_for('index'))
@@ -51,7 +51,7 @@ def process_window():
 # Unified Login / Logout
 # ─────────────────────────────────────────────
 
-@app.route('/api/login', methods=['POST'])
+@app.route('/traceability/api/login', methods=['POST'])
 def api_login():
     payload      = request.get_json() or {}
     employee_num = (payload.get('employee_num') or '').strip()
@@ -82,7 +82,7 @@ def api_login():
 
     return jsonify({'success': False, 'message': 'Invalid credentials.'}), 401
 
-@app.route('/api/logout', methods=['POST'])
+@app.route('/traceability/api/logout', methods=['POST'])
 def api_logout():
     session.clear()
     return jsonify({'success': True, 'redirect': url_for('index')})
@@ -91,7 +91,7 @@ def api_logout():
 # New Transaction   - te side
 # ─────────────────────────────────────────────
 
-@app.route('/new-transaction', methods=['GET', 'POST'])
+@app.route('/traceability/new-transaction', methods=['GET', 'POST'])
 def new_transaction():
     if request.method == 'POST':
         data = {
@@ -123,7 +123,7 @@ def new_transaction():
 # Close Transaction
 # ─────────────────────────────────────────────
 
-@app.route('/close-transaction')
+@app.route('/traceability/close-transaction')
 def close_transaction():
     try:
         open_txns = tester_records.get_open_transactions()
@@ -132,7 +132,7 @@ def close_transaction():
     return render_template('close_transaction.html', transactions=open_txns)
 
 
-@app.route('/close-transaction/submit', methods=['POST'])
+@app.route('/traceability/close-transaction/submit', methods=['POST'])
 def close_transaction_submit():
     transaction_id = request.form.get('transaction_id')
     if not transaction_id:
@@ -151,7 +151,7 @@ def close_transaction_submit():
 # User Authentication (Person in Charge)
 # ─────────────────────────────────────────────
 
-@app.route('/api/auth-user', methods=['POST'])
+@app.route('/traceability/api/auth-user', methods=['POST'])
 def auth_user():
     payload = request.get_json() or {}
     identity = (payload.get('employee_num') or payload.get('group') or payload.get('email') or '').strip()
@@ -171,7 +171,7 @@ def auth_user():
 # Change Password
 # ─────────────────────────────────────────────
 
-@app.route('/change-password')
+@app.route('/traceability/change-password')
 def change_password_page():
     te_user = session.get('te_user')
     pe_user = session.get('pe_user')
@@ -182,7 +182,7 @@ def change_password_page():
     return render_template('change_password.html', current_user=current_user, system=system)
 
 
-@app.route('/api/change-password', methods=['POST'])
+@app.route('/traceability/change-password', methods=['POST'])
 def api_change_password():
     te_user = session.get('te_user')
     pe_user = session.get('pe_user')
@@ -215,7 +215,7 @@ def api_change_password():
 # Cascading Dropdown APIs
 # ─────────────────────────────────────────────
 
-@app.route('/api/models/<product_id>')
+@app.route('/traceability/api/models/<product_id>')
 def api_models(product_id):
     try:
         models = active_projects.get_models_by_product(product_id)
@@ -224,7 +224,7 @@ def api_models(product_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/stations/<product_id>/<model_name>')
+@app.route('/traceability/api/stations/<product_id>/<model_name>')
 def api_stations(product_id, model_name):
     try:
         stations = active_projects.get_stations_by_model(product_id, model_name)
@@ -233,7 +233,7 @@ def api_stations(product_id, model_name):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/tester-codes')
+@app.route('/traceability/api/tester-codes')
 def api_tester_codes():
     fixture = request.args.get('fixture', '').strip()
     if not fixture:
@@ -244,7 +244,7 @@ def api_tester_codes():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/tester-name')
+@app.route('/traceability/api/tester-name')
 def api_tester_name():
     code = request.args.get('code', '').strip()
     if not code:
@@ -256,7 +256,7 @@ def api_tester_name():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/fixture-lookup', methods=['POST'])
+@app.route('/traceability/api/fixture-lookup', methods=['POST'])
 def fixture_lookup():
     body     = request.get_json(force=True)
     asset_no = (body.get('fixture_asset_no') or '').strip()
@@ -277,14 +277,14 @@ def fixture_lookup():
 # ─────────────────────────────────────────────
 #               Process Side
 # ─────────────────────────────────────────────
-@app.route('/process-login', methods=['GET'])
+@app.route('/traceability/process-login', methods=['GET'])
 def process_login_page():
     if session.get('pe_user'):
         return redirect(url_for('process_new_transaction'))
     return render_template('process_login.html')
 
 
-@app.route('/api/process-login', methods=['POST'])
+@app.route('/traceability/api/process-login', methods=['POST'])
 def process_login():
     payload  = request.get_json() or {}
     ke_no    = (payload.get('ke_no') or '').strip()
@@ -300,12 +300,12 @@ def process_login():
 
     return jsonify({'success': False, 'message': 'Invalid KE No. or password.'}), 401
 
-@app.route('/api/process-logout', methods=['POST'])
+@app.route('/traceability/api/process-logout', methods=['POST'])
 def process_logout():
     session.pop('pe_user', None)
     return jsonify({'success': True})
 
-@app.route('/process-new-transaction', methods=['GET', 'POST'])
+@app.route('/traceability/process-new-transaction', methods=['GET', 'POST'])
 def process_new_transaction():
     # Guard — redirect to login if not authenticated
     if not session.get('pe_user'):
@@ -359,13 +359,13 @@ def process_new_transaction():
 
     return render_template('process_new_transaction.html')
 
-@app.route('/process-close-transaction')
+@app.route('/traceability/process-close-transaction')
 def process_close_transaction():
     return render_template('process_close_transaction.html')
 
 # ── Process-side API endpoints ────────────────────────────────────────────────
 
-@app.route('/api/process-asset-lookup', methods=['POST'])
+@app.route('/traceability/api/process-asset-lookup', methods=['POST'])
 def process_asset_lookup():
     body     = request.get_json(force=True)
     asset_id = (body.get('asset_id') or '').strip()
@@ -387,7 +387,7 @@ def process_asset_lookup():
         'asset_name': row['asset_name'],
     })
  
-@app.route('/api/pe-users')
+@app.route('/traceability/api/pe-users')
 def pe_users_search():
     query = request.args.get('q', '').strip()
     if len(query) < 2:
@@ -398,7 +398,7 @@ def pe_users_search():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/process-submit-data', methods=['POST'])
+@app.route('/traceability/api/process-submit-data', methods=['POST'])
 def process_submit_data():
     data = {
             'asset_id':            request.form.get('asset_id', '').strip(),
@@ -420,7 +420,7 @@ def process_submit_data():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/ai-summarize', methods=['POST'])
+@app.route('/traceability/api/ai-summarize', methods=['POST'])
 def ai_summarize():
     body    = request.get_json(force=True) or {}
     api_key = (body.get('api_key') or '').strip()
@@ -465,7 +465,7 @@ def ai_summarize():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/classifications')
+@app.route('/traceability/api/classifications')
 def api_classifications():
     try:
         classifications = tester_records.get_classifications()

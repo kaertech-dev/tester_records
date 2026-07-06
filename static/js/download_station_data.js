@@ -109,7 +109,7 @@
     if (!dbSel || databasesLoaded) return;
     dbSel.innerHTML = '<option value="">Loading databases…</option>';
     try {
-      const res  = await fetch('/api/active-databases');
+      const res  = await fetch('/traceability/api/active-databases');
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Failed to load databases');
       dbSel.innerHTML = '<option value="">— All databases —</option>';
@@ -132,7 +132,7 @@
     stationsLoaded = false;
     try {
       const qs = database ? `?database=${encodeURIComponent(database)}` : '';
-      const res  = await fetch(`/api/stations-list${qs}`);
+      const res  = await fetch(`/traceability/api/stations-list${qs}`);
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Failed to load');
       stationSel.innerHTML = `
@@ -194,7 +194,7 @@
     clearPreview();
 
     try {
-      const res  = await fetch('/api/preview-station-data', {
+      const res  = await fetch('/traceability/api/preview-station-data', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
@@ -647,7 +647,7 @@
       const dataText   = buildDataTextForAI();
       const fullPrompt = buildFullPrompt(prompt, dataText);
 
-      const res = await fetch('/api/ai-summarize', {
+      const res = await fetch('/traceability/api/ai-summarize', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ api_key: apiKey, prompt: fullPrompt }),

@@ -107,7 +107,7 @@
         hideMessage();
 
         try {
-            const response = await fetch('/close-transaction/submit', {
+            const response = await fetch('/traceability/close-transaction/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `transaction_id=${encodeURIComponent(activeTransactionId)}&action_taken=${encodeURIComponent(actionTaken)}`

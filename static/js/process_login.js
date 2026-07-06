@@ -23,7 +23,7 @@ async function attemptLogin() {
     loginError.className = 'status-msg hidden';
 
     try {
-        const res  = await fetch('/api/process-login', {
+        const res  = await fetch('/traceability/api/process-login', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ ke_no: keNo, password }),
@@ -36,7 +36,7 @@ async function attemptLogin() {
         }
 
         // Redirect to the transaction form — session is set server-side
-        window.location.href = '/process-new-transaction';
+        window.location.href = '/traceability/process-new-transaction';
 
     } catch (err) {
         console.error('Login error:', err);

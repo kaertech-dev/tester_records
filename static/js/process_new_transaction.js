@@ -2,7 +2,7 @@
 
 // ── Logout ────────────────────────────────────────────────────────────────────
 document.getElementById('btn-logout')?.addEventListener('click', async () => {
-    await fetch('/api/logout', { method: 'POST' });
+    await fetch('/traceability/api/logout', { method: 'POST' });
     window.location.href = '/traceability';
 });
 
@@ -30,7 +30,7 @@ async function lookUpAsset() {
     assetStatus.className = 'status-msg hidden';
 
     try {
-        const res  = await fetch('/api/process-asset-lookup', {
+        const res  = await fetch('/traceability/api/process-asset-lookup', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ asset_id: assetId }),
@@ -280,7 +280,7 @@ btnSubmitData?.addEventListener('click', async () => {
     try {
         const formData = new FormData(form);
 
-        const response = await fetch('/api/process-submit-data', {
+        const response = await fetch('/traceability/api/process-submit-data', {
             method: 'POST',
             body:   formData,
         });

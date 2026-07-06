@@ -174,7 +174,7 @@
             }
 
             try {
-                const response = await fetch('/api/auth-user', {
+                const response = await fetch('/traceability/api/auth-user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ group, password: badge })
