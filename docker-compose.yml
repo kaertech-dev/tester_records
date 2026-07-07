@@ -1,5 +1,3 @@
-
-
 services:
   traceability:
     build: .
@@ -12,7 +10,9 @@ services:
       - .env
     environment:
       - FLASK_ENV=production
+    networks:
+      - manufacturing_network
 
 networks:
   manufacturing_network:
-    external: True
+    external: true
