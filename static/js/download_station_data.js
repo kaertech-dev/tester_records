@@ -774,7 +774,7 @@
       qs.set('ai_prompt', (promptInput?.value || '').trim());
     }
 
-    const evtSource = new EventSource(`/api/download-station-data-stream?${qs}`);
+    const evtSource = new EventSource(`/traceability/api/download-station-data-stream?${qs}`);
 
     evtSource.onmessage = (e) => {
       const msg = JSON.parse(e.data);

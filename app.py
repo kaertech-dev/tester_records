@@ -24,6 +24,10 @@ process_records  = ProcessRecords()
 # Landing Page
 # ─────────────────────────────────────────────
 
+@app.route('/')
+def root_redirect():
+    return redirect('/traceability', code=302)
+
 @app.route('/traceability')
 def index():
     # If already logged in, send straight to the right window
