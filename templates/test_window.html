@@ -257,9 +257,9 @@
     <script src="{{ url_for('static', filename='js/download_data.js') }}"></script>
     <script>
         document.getElementById('exit-btn').addEventListener('click', async () => {
-            await fetch('/traceability/api/logout', { method: 'POST' });
+            await fetch('', { method: 'POST' });
             window.location.href = '/traceability';
         });
     </script>
-</body>
+</body/traceability/api/logout>
 </html>
