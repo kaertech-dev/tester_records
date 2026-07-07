@@ -482,4 +482,4 @@ if __name__ == '__main__':
         ensure_indexes()
     except Exception:
         pass
-    app.run(host='0.0.0.0', port=5050, debug=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=5003, debug=False)

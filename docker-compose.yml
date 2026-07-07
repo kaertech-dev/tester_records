@@ -4,7 +4,7 @@ services:
     image: traceability
     container_name: traceability_monitoring
     ports:
-      - "5050:5050"
+      - "5003:5003"
     restart: always
     env_file:
       - .env
