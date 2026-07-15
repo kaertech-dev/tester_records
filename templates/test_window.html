@@ -103,7 +103,7 @@
 
         <footer class="footer">
             <a href="{{ url_for('change_password_page') }}" class="exit-btn" style="margin-right:auto;">Change Password</a>
-            <a href="{{ url_for('index') }}" id="exit-btn" type="button" class="exit-btn">Sign Out</a>
+            <button id="exit-btn" type="button" class="exit-btn">Sign Out</button>
         </footer>
     </div>
     <div id="download-overlay">
@@ -255,6 +255,42 @@
     }
     </script>
     <script src="{{ url_for('static', filename='js/download_data.js') }}"></script>
+    <script>
+        // Clean Logout Handler
+        document.getElementById('exit-btn').addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to sign out?')) return;
+
+            const btn = document.getElementById('exit-btn');
+            const originalText = btn.textContent;
+            
+            btn.disabled = true;
+            btn.textContent = 'Signing out...';
+
+            try {
+                const response = await fetch('{{ url_for("api_logout") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    window.location.href = result.redirect || '{{ url_for("index") }}';
+                } else {
+                    alert('Logout failed. Please try again.');
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Connection error. Please try again.');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        });
+    </script>
     <script>
         document.getElementById('exit-btn').addEventListener('click', async () => {
             await fetch('', { method: 'POST' });
