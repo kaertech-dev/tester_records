@@ -35,13 +35,13 @@ function populateSelect(select, items, placeholder) {
 }
 
 async function fetchModels(schemaName) {
-    const response = await fetch(`/api/models/${encodeURIComponent(schemaName)}`);
+    const response = await fetch(`/traceability/api/models/${encodeURIComponent(schemaName)}`);
     if (!response.ok) throw new Error('Failed to load models');
     return response.json();
 }
 
 async function fetchStations(schemaName, modelName) {
-    const response = await fetch(`/api/stations/${encodeURIComponent(schemaName)}/${encodeURIComponent(modelName)}`);
+    const response = await fetch(`/traceability/api/stations/${encodeURIComponent(schemaName)}/${encodeURIComponent(modelName)}`);
     if (!response.ok) throw new Error('Failed to load stations');
     return response.json();
 }
@@ -97,7 +97,7 @@ async function lookUpFixture() {
     testerNameEl.value = '';
 
     try {
-        const res = await fetch('/api/fixture-lookup', {
+        const res = await fetch('/traceability/api/fixture-lookup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fixture_asset_no: assetNo })
@@ -132,3 +132,26 @@ window.addEventListener('DOMContentLoaded', () => {
     clearSelect(modelSelect, 'Select product first…');
     clearSelect(stationSelect, 'Select model first…');
 });
+async function loadClassifications() {
+        const select = document.getElementById('classification');
+        try {
+            const res  = await fetch('/traceability/api/classifications');
+            const data = await res.json();
+            select.innerHTML = '<option value="" disabled selected>Select a classification…</option>';
+            data.forEach(c => {
+                const opt   = document.createElement('option');
+                opt.value   = c;
+                opt.textContent = c;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error('Failed to load classifications:', err);
+            select.innerHTML = '<option value="" disabled selected>Failed to load…</option>';
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        clearSelect(modelSelect, 'Select product first…');
+        clearSelect(stationSelect, 'Select model first…');
+        loadClassifications();  // ← add this
+    });

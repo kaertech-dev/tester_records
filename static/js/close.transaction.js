@@ -107,7 +107,7 @@
         hideMessage();
 
         try {
-            const response = await fetch('/close-transaction/submit', {
+            const response = await fetch('/traceability/close-transaction/submit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `transaction_id=${encodeURIComponent(activeTransactionId)}&action_taken=${encodeURIComponent(actionTaken)}`
@@ -178,7 +178,7 @@
                             <path d="M22 32h20M22 24h20M22 40h14" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round"/>
                         </svg>
                         <p>No open transactions found.</p>
-                        <a href="/new-transaction" class="btn-new">Create a New Transaction</a>
+                        <a href="/traceability/new-transaction" class="btn-new">Create a New Transaction</a>
                     </div>`;
             }
         }

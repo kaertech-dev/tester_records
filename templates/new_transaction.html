@@ -66,14 +66,7 @@
                             <div class="field-group" id="group-classification">
                                 <label for="classification">Classification</label>
                                 <select id="classification" name="classification" required>
-                                    <option value="" disabled selected>Select a classification…</option>
-                                    <option value="CALIBRATION">Calibration</option>
-                                    <option value="CORRECTIVE MAINTENANCE">Corrective Maintenance</option>
-                                    <option value="DEPLOYMENT">Deployment</option>
-                                    <option value="PREVENTIVE MAINTENANCE">Preventive Maintenance</option>
-                                    <option value="REPAIR">Repair</option>
-                                    <option value="SETUP">Setup</option>
-                                    <option value="START UP">Start Up</option>
+                                    <option value="" disabled selected>Loading…</option>
                                 </select>
                             </div>
                         </div>
@@ -81,17 +74,16 @@
                         <!-- RIGHT COLUMN -->
                         <div class="form-col">
                             <p class="section-title">Assignment &amp; Equipment</p>
-
+                            
                             <!-- Person in Charge — authorize via te.user -->
-                            <div class="field-group" id="group-pic">
+                            <div class="field-group" id="group-pic" style="display:none;">
                                 <label for="pic-email">Person in Charge</label>
                                 <div class="pic-auth-row">
-                                    <input type="text" id="pic-email" placeholder="Group / username" autocomplete="off" readonly required>
-                                    <input type="password" id="pic-password" placeholder="Badge / password" autocomplete="off" readonly required>
-                                    <button type="button" id="btn-auth-pic" class="btn-auth">Authorize</button>
+                                    <input type="hidden" id="pic-email">
+                                    <input type="hidden" id="pic-password">
+                                    <button id="btn-auth-pic" class="btn-auth">Authorize</button>
                                 </div>
                                 <div id="pic-status" class="pic-status hidden"></div>
-                                <!-- hidden field carries authorized employee_num to form POST -->
                                 <input type="hidden" id="person_in_charge" name="person_in_charge" readonly required>
                             </div>
 
@@ -153,7 +145,7 @@
         };
 
         if (sessionUser.employee_num) {
-            picEmailInput.value        = sessionUser.group;
+            picEmailInput.value        = sessionUser.employee_num; // or sessionUser.group, they are the same for TE users
             picPasswordInput.value     = '••••••••';   // visual placeholder only
             picPasswordInput.disabled  = true;
             btnAuthPic.disabled        = true;
@@ -182,7 +174,7 @@
             }
 
             try {
-                const response = await fetch('/api/auth-user', {
+                const response = await fetch('/traceability/api/auth-user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ group, password: badge })

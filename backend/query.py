@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from sqlalchemy import text
 from backend.database import projects_engine, get_te_session, get_pe_session
-from backend.orm_models import TesterRecord, TesterCredential, User, ProcessCredential, ProcessRecord
+from backend.orm_models import TesterRecord, TesterCredential, User, ProcessCredential, ProcessRecord, TesterClassification
 import bcrypt
 
 _CACHE = {
@@ -69,15 +69,18 @@ class Model:
                 return []
             names = [r[0] for r in rows]
             prefix = model_name + '_'
+            
+            _OLD_SUFFIXES = ('_old', '_old2', '_copy', '_2', 'old','oldv2', '_tochange', 'progtest(old)')
+            
             stations = sorted(set(
                 n[len(prefix):] for n in names
                 if n.startswith(prefix)
+                and not n[len(prefix):].lower().endswith(_OLD_SUFFIXES)  # ← filter here
             ))
             return [{'id': s, 'name': s} for s in stations]
         except Exception as e:
             print(f"[Model] stations for '{schemadb}'.'{model_name}': {e}")
             return []
-
 
 # ── ActiveProjects ────────────────────────────────────────────────────────────
 
@@ -211,19 +214,19 @@ class TesterRecords:
     # ── Write methods ─────────────────────────────────────────────
 
     def create_transaction(self, data: dict):
-        with get_te_session() as session:
-            new_record = TesterRecord(
-                tester_code=data.get('tester_code'),
-                tester_name=data.get('tester_name'),
-                classification=data.get('classification'),
-                datetime_start=datetime.now(),
-                pic=data.get('person_in_charge'),
-                issues=data.get('issues', ''),
-                remarks='open'
+        with get_te_session() as session:          
+            new_record = TesterRecord(             
+                tester_code    = data.get('tester_code', '').strip(),
+                tester_name    = data.get('tester_name', '').strip(),
+                classification = data.get('classification', '').strip(),
+                pic            = data.get('person_in_charge', '').strip(),
+                issues         = data.get('issues', '').strip(),
+                datetime_start = datetime.now(),
+                remarks        = 'open',
             )
             session.add(new_record)
-        _CACHE['tester_records'] = (None, 0)   # bust cache
-
+        _CACHE['tester_records'] = (None, 0)
+ 
     def close_transaction(self, transaction_id: int, action_taken: str = ''):
         try:
             with get_te_session() as session:
@@ -243,7 +246,11 @@ class TesterRecords:
         except Exception as e:
             print(f"[close_transaction] {e}")
             return False, str(e)
-
+    def get_classifications(self):
+        with get_te_session() as session:
+            rows = session.query(TesterClassification).order_by(TesterClassification.classification).all()
+            return [r.classification for r in rows]
+        
 class ProcessRecords:
     """All queries against pe.process_records and pe.process_credential."""
 
@@ -343,33 +350,23 @@ class ProcessRecords:
             except ValueError:
                 return None
 
-        def _parse_date(val):
-            if not val:
-                return None
-            try:
-                return datetime.strptime(val, '%Y-%m-%d').date()
-            except ValueError:
-                return None
-
         with get_pe_session() as session:
             new_record = ProcessRecord(
-                asset_id           = data.get('asset_id', '').strip(),
-                asset_name         = data.get('asset_name', '').strip(),
-                line_no            = data.get('line_no', '').strip(),
-                description        = data.get('description', '').strip(),
-                analysis           = data.get('analysis', '').strip(),
-                corrective_action  = data.get('corrective_action', '').strip(),
-                verification_result= data.get('verification_result', '').strip(),
-                equip_down    = _parse_dt(data.get('equip_down')),
-                repair_start       = _parse_dt(data.get('repair_start')),
-                repair_end         = _parse_dt(data.get('repair_end')),
-                troubleshoot_by    = data.get('troubleshoot_by', '').strip(),
-                retention_period   = data.get('retention_period', '').strip(),
-                effective_date     = _parse_date(data.get('effective_date')),
-                logged_by           = data.get('logged_by', '').strip(),
+                asset_id       = data.get('asset_id', '').strip(),
+                asset_name     = data.get('asset_name', '').strip(),
+                line_no        = data.get('line_no', '').strip(),
+                classification = data.get('classification', '').strip(),
+                equip_down     = _parse_dt(data.get('equip_down')),
+                datetime_start = _parse_dt(data.get('datetime_start')),
+                datetime_end   = _parse_dt(data.get('datetime_end')),
+                description    = data.get('description', '').strip(),
+                action_taken   = data.get('action_taken', '').strip(),
+                remarks        = data.get('remarks', '').strip(),
+                pic            = data.get('pic', '').strip(),
+                logged_by      = data.get('logged_by', '').strip(),
             )
             session.add(new_record)
-        _CACHE['process_records'] = (None, 0)  # bust cache
+        _CACHE['process_records'] = (None, 0)
 # ── UserAuth ──────────────────────────────────────────────────────────────────
 
 class UserAuth:
@@ -384,10 +381,11 @@ class UserAuth:
         with get_te_session() as session:
             rows = session.query(User).all()
             users = {
-                (r.group, r.badge): {
-                    'name':          r.name,
-                    'employee_num':  r.employee_num,
-                    'password_hash': r.password_hash,   # ← include hash
+                r.employee_num: {
+                    'employee_num': r.employee_num,
+                    'group':        r.group,
+                    'name':         r.name,
+                    'badge':        r.badge,
                 }
                 for r in rows
             }
@@ -395,50 +393,71 @@ class UserAuth:
         self._users = users
         return users
 
-    def authenticate(self, group: str, password: str):
+    @staticmethod
+    def _is_hashed(value: str) -> bool:
+        return isinstance(value, str) and value.startswith('$2')
+
+    @staticmethod
+    def _verify_badge(stored_badge: str, password: str) -> bool:
+        if not stored_badge:
+            return False
+        if stored_badge.startswith('$2'):
+            try:
+                return bcrypt.checkpw(password.encode(), stored_badge.encode())
+            except Exception:
+                return False
+        return stored_badge == password
+
+    def _upgrade_plaintext_badge(self, employee_num: str, password: str) -> None:
+        hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        with get_te_session() as session:
+            row = session.query(User).filter(User.employee_num == employee_num).first()
+            if row and row.badge == password:
+                row.badge = hashed
+        _CACHE['users'] = (None, 0)
+
+    def authenticate(self, identity: str, password: str):
         """
-        Accepts both hashed passwords (new) and plain badge passwords (legacy).
-        Once a user logs in with their plain badge, we upgrade to bcrypt on the fly.
+        Accepts either group or employee_num as identity.
+        Uses bcrypt-protected badge values wherever possible.
+        Legacy plaintext badges are upgraded on successful login.
         """
         self._load_users()
-        user = self._users.get((group, password))  # legacy plain-text match
 
-        if user:
-            # Opportunistic upgrade: if no hash yet, hash it now
-            if not user.get('password_hash'):
-                self._store_hash(group, password, password)
-            return {'name': user['name'], 'employee_num': user['employee_num']}
+        # Try employee_num lookup first
+        user = self._users.get(identity)
+        if user and self._verify_badge(user.get('badge', ''), password):
+            if not self._is_hashed(user.get('badge', '')):
+                self._upgrade_plaintext_badge(identity, password)
+            return {
+                'group':        user['group'],
+                'name':         user['name'],
+                'employee_num': user['employee_num'],
+            }
 
-        # No plain-text match — try bcrypt against all users in this group
-        for (g, b), u in self._users.items():
-            if g != group:
+        # Fallback to group-based lookup if identity is a group
+        for u in self._users.values():
+            if u.get('group') != identity:
                 continue
-            ph = u.get('password_hash')
-            if ph and bcrypt.checkpw(password.encode(), ph.encode()):
-                return {'name': u['name'], 'employee_num': u['employee_num']}
+            if self._verify_badge(u.get('badge', ''), password):
+                if not self._is_hashed(u.get('badge', '')):
+                    self._upgrade_plaintext_badge(u['employee_num'], password)
+                return {
+                    'group':        u['group'],
+                    'name':         u['name'],
+                    'employee_num': u['employee_num'],
+                }
 
         return None
 
-    def _store_hash(self, group: str, badge: str, plain_password: str, db_session_fn=None):
-        """Hash plain_password and write it to the DB row matching (group, badge)."""
-        hashed = bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
-        get_session = db_session_fn or get_te_session
-        with get_session() as session:
-            row = session.query(User).filter(
-                User.group == group,
-                User.badge == badge
-            ).first()
-            if row:
-                row.password_hash = hashed
-        _CACHE['users'] = (None, 0)  # bust cache
 
-    def change_password(self, group: str, badge: str, old_password: str,
+    def change_password(self, identity: str, old_password: str,
                         new_password: str, db_session_fn=None):
         """
-        Verify old_password (plain or hashed), then store bcrypt hash of new_password.
+        Verify old_password and store bcrypt hash of new_password in the badge field.
         Returns (True, 'message') or (False, 'error').
         """
-        user = self.authenticate(group, old_password)
+        user = self.authenticate(identity, old_password)
         if not user:
             return False, 'Current password is incorrect.'
 
@@ -450,14 +469,41 @@ class UserAuth:
 
         with get_session() as session:
             row = session.query(User).filter(
-                User.group == group,
-                User.badge == badge
+                User.employee_num == user['employee_num']
             ).first()
             if not row:
                 return False, 'User not found.'
-            row.badge         = new_password   # keep badge in sync (used as login key)
-            row.password_hash = hashed
+            row.badge = hashed
 
         _CACHE['users'] = (None, 0)
         _CACHE['auth']  = {}
         return True, 'Password changed successfully.'
+    
+    def authenticate_with_session(self, identity: str, password: str, db_session_fn):
+        """
+        Same as authenticate() but queries the given db_session_fn instead of
+        the TE cache. Used for PE login so bcrypt verification + auto-upgrade
+        work on that database too.
+        """
+        with db_session_fn() as session:
+            # Try employee_num first, then group
+            row = session.query(User).filter(User.employee_num == identity).first()
+            if not row:
+                row = session.query(User).filter(User.group == identity).first()
+            if not row:
+                return None
+
+            if not self._verify_badge(row.badge or '', password):
+                return None
+
+            # Upgrade plaintext → bcrypt on the PE side
+            if not self._is_hashed(row.badge or ''):
+                hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                row.badge = hashed
+                # session commits automatically via context manager
+
+            return {
+                'name':         row.name,
+                'employee_num': row.employee_num,
+                'group':        row.group,
+            }

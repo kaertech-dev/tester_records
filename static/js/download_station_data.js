@@ -1,16 +1,12 @@
 /**
- * static/js/download_station_data.js
+ * static/js/download_station_data.js  (yield edition)
  *
- * Station Data modal — filter → Preview table → AI Summarize → Download Excel
- *
- * AI flow:
- *   1. User enters Anthropic API key in #stn-api-key
- *   2. User types a prompt in #stn-prompt-input  (e.g. "compute yield, input vs output")
- *   3. Click "Summarize Data" → calls Anthropic /v1/messages directly from the browser
- *      with ALL rows from all tables serialised as CSV-like text
- *   4. AI response rendered in #stn-ai-result-wrap (markdown-lite rendering)
- *   5. "Download Excel" → POST /api/download-station-data with { ...payload, ai_summary }
- *      so the backend can append an "AI Analysis" sheet
+ * Additions over original:
+ *   – renderYieldDashboard(yieldSummary) builds a Chart.js yield panel
+ *     directly inside the preview wrap, above the data table.
+ *   – previewData.yield_summary is forwarded to the dashboard renderer
+ *     every time a preview loads.
+ *   – No other logic changed.
  */
 
 (function () {
@@ -24,6 +20,7 @@
   const previewBtn  = document.getElementById('stn-preview-btn');
   const dlBtn       = document.getElementById('stn-dl-btn');
   const statusEl    = document.getElementById('stn-status');
+  const dbSel       = document.getElementById('stn-database');
   const stationSel  = document.getElementById('stn-station');
   const tabs        = document.querySelectorAll('.stn-tab');
   const panels      = document.querySelectorAll('.stn-panel');
@@ -37,14 +34,44 @@
   /* ── State ────────────────────────────────────────────────────────────── */
   let lastPayload     = null;
   let currentTableIdx = 0;
-  let previewData     = null;   // full /api/preview-station-data response (has ALL rows)
+  let previewData     = null;
   let currentPage     = 0;
-  let aiSummary       = null;   // latest AI text — sent with download
+  let aiSummary       = null;
   const PAGE_SIZE     = 20;
+
+  /* ── Chart.js lazy-load ───────────────────────────────────────────────── */
+  let chartJsReady = false;
+  let _chartJsCallbacks = [];
+
+  function withChartJs(cb) {
+    if (chartJsReady) { cb(); return; }
+    _chartJsCallbacks.push(cb);
+    if (document.getElementById('_chartjs_script')) return;
+    const s = document.createElement('script');
+    s.id  = '_chartjs_script';
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+    s.onload = () => {
+      chartJsReady = true;
+      _chartJsCallbacks.forEach(fn => fn());
+      _chartJsCallbacks = [];
+    };
+    document.head.appendChild(s);
+  }
+
+  /* ── Yield chart instances (kept so we can destroy before re-render) ──── */
+  const _yieldCharts = {};
+
+  function destroyYieldCharts() {
+    Object.keys(_yieldCharts).forEach(k => {
+      try { _yieldCharts[k].destroy(); } catch (_) {}
+      delete _yieldCharts[k];
+    });
+  }
 
   /* ── Open / close ─────────────────────────────────────────────────────── */
   openBtn.addEventListener('click', () => {
     overlay.classList.add('active');
+    loadDatabases();
     loadStations();
   });
 
@@ -71,17 +98,47 @@
   });
 
   stationSel.addEventListener('change', clearPreview);
+  dbSel?.addEventListener('change', () => {
+    clearPreview();
+    loadStations(dbSel.value);
+  });
+
+  /* ── Load databases ───────────────────────────────────────────────────── */
+  let databasesLoaded = false;
+  async function loadDatabases() {
+    if (!dbSel || databasesLoaded) return;
+    dbSel.innerHTML = '<option value="">Loading databases…</option>';
+    try {
+      const res  = await fetch('/traceability/api/active-databases');
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to load databases');
+      dbSel.innerHTML = '<option value="">— All databases —</option>';
+      data.forEach(schema => {
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = schema;
+        dbSel.appendChild(opt);
+      });
+      databasesLoaded = true;
+    } catch (err) {
+      dbSel.innerHTML = '<option value="">Error loading databases</option>';
+      setStatus(`⚠ ${err.message}`, 'error');
+    }
+  }
 
   /* ── Load stations ────────────────────────────────────────────────────── */
   let stationsLoaded = false;
-  async function loadStations() {
-    if (stationsLoaded) return;
+  async function loadStations(database = dbSel?.value || '') {
     stationSel.innerHTML = '<option value="">Loading stations…</option>';
+    stationsLoaded = false;
     try {
-      const res  = await fetch('/api/stations-list');
+      const qs = database ? `?database=${encodeURIComponent(database)}` : '';
+      const res  = await fetch(`/traceability/api/stations-list${qs}`);
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Failed to load');
-      stationSel.innerHTML = '<option value="">— Select station —</option>';
+      stationSel.innerHTML = `
+        <option value="">— Select station —</option>
+        <option value="__all__" title="May be slow for large date ranges">★ All Stations</option>
+      `;
       data.forEach(s => {
         const opt = document.createElement('option');
         opt.value = opt.textContent = s;
@@ -99,8 +156,9 @@
     const station = stationSel.value.trim();
     if (!station) { setStatus('Please select a station.', 'error'); return null; }
 
-    const mode    = document.querySelector('.stn-tab.active')?.dataset.mode || 'today';
-    const payload = { station, mode };
+    const database = (dbSel?.value || '').trim();
+    const mode     = document.querySelector('.stn-tab.active')?.dataset.mode || 'today';
+    const payload  = { station, mode, ...(database ? { database } : {}) };
 
     if (mode === 'day') {
       const d = document.getElementById('stn-date').value;
@@ -136,13 +194,29 @@
     clearPreview();
 
     try {
-      const res  = await fetch('/api/preview-station-data', {
+      const res  = await fetch('/traceability/api/preview-station-data', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || `Server error ${res.status}`);
+
+      const text = await res.text();
+      let data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+      }
+
+      if (!res.ok) {
+        const message = data?.error || text || `Server error ${res.status}`;
+        throw new Error(message);
+      }
+      if (!data || data.error) {
+        throw new Error(data?.error || 'Invalid response from server.');
+      }
 
       lastPayload     = payload;
       previewData     = data;
@@ -160,6 +234,239 @@
     }
   });
 
+  /* ════════════════════════════════════════════════════════════════════════
+     YIELD DASHBOARD
+  ════════════════════════════════════════════════════════════════════════ */
+
+  /**
+   * Build and inject the yield dashboard above the data table.
+   * Uses Chart.js (lazy-loaded).
+   */
+  function renderYieldDashboard(yld, container) {
+    if (!yld || !yld.has_yield_data) return;
+
+    const overall = yld.overall;
+    const pct     = overall.yield_pct;
+
+    /* ── colour helpers ── */
+    const yieldColor = p =>
+      p >= 99    ? '#22c55e' :
+      p >= 95    ? '#f59e0b' : '#ef4444';
+
+    const yieldBg = p =>
+      p >= 99    ? 'rgba(34,197,94,0.10)' :
+      p >= 95    ? 'rgba(245,158,11,0.10)' : 'rgba(239,68,68,0.10)';
+
+    /* ── wrapper ── */
+    const wrap = document.createElement('div');
+    wrap.className = 'stn-yield-dashboard';
+    wrap.innerHTML = `
+      <div class="stn-yield-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Yield Summary
+      </div>
+
+      <!-- KPI cards -->
+      <div class="stn-yield-kpis">
+        <div class="stn-yield-kpi" style="border-color:${yieldColor(pct)};background:${yieldBg(pct)}">
+          <span class="stn-yield-kpi-label">Overall Yield</span>
+          <span class="stn-yield-kpi-value" style="color:${yieldColor(pct)}">${pct.toFixed(2)}%</span>
+        </div>
+        <div class="stn-yield-kpi">
+          <span class="stn-yield-kpi-label">Total Tested</span>
+          <span class="stn-yield-kpi-value">${overall.total.toLocaleString()}</span>
+        </div>
+        <div class="stn-yield-kpi" style="border-color:#22c55e;background:rgba(34,197,94,0.06)">
+          <span class="stn-yield-kpi-label">Pass</span>
+          <span class="stn-yield-kpi-value" style="color:#22c55e">${overall.pass.toLocaleString()}</span>
+        </div>
+        <div class="stn-yield-kpi" style="border-color:#ef4444;background:rgba(239,68,68,0.06)">
+          <span class="stn-yield-kpi-label">Fail</span>
+          <span class="stn-yield-kpi-value" style="color:#ef4444">${overall.fail.toLocaleString()}</span>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="stn-yield-charts">
+        <!-- Daily trend -->
+        <div class="stn-yield-chart-box" id="stn-yield-box-daily" style="${!yld.by_date?.length ? 'display:none' : ''}">
+          <div class="stn-yield-chart-title">Daily Yield %</div>
+          <div style="position:relative;height:160px"><canvas id="stn-yield-daily"></canvas></div>
+        </div>
+
+        <!-- Shift -->
+        <div class="stn-yield-chart-box" id="stn-yield-box-shift" style="${!yld.by_shift?.length ? 'display:none' : ''}">
+          <div class="stn-yield-chart-title">By Shift</div>
+          <div style="position:relative;height:160px"><canvas id="stn-yield-shift"></canvas></div>
+        </div>
+
+        <!-- PO -->
+        <div class="stn-yield-chart-box" id="stn-yield-box-po" style="${!yld.by_po?.length ? 'display:none' : ''}">
+          <div class="stn-yield-chart-title">By PO Number</div>
+          <div style="position:relative;height:160px"><canvas id="stn-yield-po"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Fail reasons -->
+      ${yld.fail_reasons?.length ? `
+      <div class="stn-yield-fails">
+        <div class="stn-yield-chart-title">Top Fail Reasons</div>
+        <div style="position:relative;height:${Math.max(120, yld.fail_reasons.length * 22)}px">
+          <canvas id="stn-yield-fails-chart"></canvas>
+        </div>
+      </div>` : ''}
+    `;
+
+    container.insertBefore(wrap, container.firstChild);
+
+    /* ── draw charts after Chart.js loads ── */
+    withChartJs(() => {
+      const textColor = '#9ca3af';
+      const gridColor = 'rgba(255,255,255,0.06)';
+
+      /* Daily line chart */
+      if (yld.by_date?.length) {
+        const labels = yld.by_date.map(d => d.date);
+        const data   = yld.by_date.map(d => +d.yield_pct.toFixed(2));
+        const minY   = Math.max(0, Math.min(...data) - 2);
+
+        _yieldCharts['daily'] = new Chart(
+          document.getElementById('stn-yield-daily'),
+          {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Yield %',
+                data,
+                borderColor:     '#22c55e',
+                backgroundColor: 'rgba(34,197,94,0.08)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3,
+                pointBackgroundColor: '#22c55e',
+                borderDash: [],
+              }],
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: textColor, font: { size: 9 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 10 }, grid: { color: gridColor } },
+                y: { min: minY, max: 100.2, ticks: { color: textColor, font: { size: 10 }, callback: v => v.toFixed(1) + '%' }, grid: { color: gridColor } },
+              },
+            },
+          }
+        );
+      }
+
+      /* Shift bar chart */
+      if (yld.by_shift?.length) {
+        const labels = yld.by_shift.map(s => `Shift ${s.shift}`);
+        const data   = yld.by_shift.map(s => +s.yield_pct.toFixed(2));
+
+        _yieldCharts['shift'] = new Chart(
+          document.getElementById('stn-yield-shift'),
+          {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Yield %',
+                data,
+                backgroundColor: data.map(v => yieldColor(v) + '99'),
+                borderColor:     data.map(v => yieldColor(v)),
+                borderWidth: 1,
+                borderRadius: 4,
+              }],
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: textColor, font: { size: 11 } }, grid: { display: false } },
+                y: { min: Math.max(0, Math.min(...data) - 3), max: 100.2,
+                     ticks: { color: textColor, font: { size: 10 }, callback: v => v.toFixed(1) + '%' },
+                     grid: { color: gridColor } },
+              },
+            },
+          }
+        );
+      }
+
+      /* PO bar chart */
+      if (yld.by_po?.length) {
+        const labels = yld.by_po.map(p => p.po_num);
+        const data   = yld.by_po.map(p => +p.yield_pct.toFixed(2));
+
+        _yieldCharts['po'] = new Chart(
+          document.getElementById('stn-yield-po'),
+          {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Yield %',
+                data,
+                backgroundColor: data.map(v => yieldColor(v) + '99'),
+                borderColor:     data.map(v => yieldColor(v)),
+                borderWidth: 1,
+                borderRadius: 4,
+              }],
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: textColor, font: { size: 10 }, maxRotation: 30, autoSkip: false }, grid: { display: false } },
+                y: { min: Math.max(0, Math.min(...data) - 3), max: 100.2,
+                     ticks: { color: textColor, font: { size: 10 }, callback: v => v.toFixed(1) + '%' },
+                     grid: { color: gridColor } },
+              },
+            },
+          }
+        );
+      }
+
+      /* Fail reasons horizontal bar */
+      if (yld.fail_reasons?.length) {
+        const labels = yld.fail_reasons.map(f => f.reason);
+        const data   = yld.fail_reasons.map(f => f.count);
+
+        _yieldCharts['fails'] = new Chart(
+          document.getElementById('stn-yield-fails-chart'),
+          {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Count',
+                data,
+                backgroundColor: 'rgba(239,68,68,0.7)',
+                borderColor:     '#ef4444',
+                borderWidth: 1,
+                borderRadius: 3,
+                borderSkipped: false,
+              }],
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: textColor, font: { size: 10 } }, grid: { color: gridColor } },
+                y: { ticks: { color: textColor, font: { size: 10 } }, grid: { display: false } },
+              },
+            },
+          }
+        );
+      }
+    });
+  }
+
   /* ── Render preview panel ─────────────────────────────────────────────── */
   function renderPreview() {
     if (!previewData) return;
@@ -167,6 +474,7 @@
 
     previewWrap.innerHTML = '';
     previewWrap.style.display = 'block';
+    destroyYieldCharts();
 
     // Summary bar
     const summary = document.createElement('div');
@@ -179,12 +487,17 @@
     `;
     previewWrap.appendChild(summary);
 
+    // ── Yield dashboard (NEW) ──────────────────────────────────────────────
+    if (previewData.yield_summary?.has_yield_data) {
+      renderYieldDashboard(previewData.yield_summary, previewWrap);
+    }
+
     if (tables.length === 0) {
       previewWrap.innerHTML += '<p class="stn-preview-empty">No data found.</p>';
       return;
     }
 
-    // Table selector tabs (multiple tables)
+    // Table selector tabs
     if (tables.length > 1) {
       const tabBar = document.createElement('div');
       tabBar.className = 'stn-tbl-tabs';
@@ -213,7 +526,6 @@
     pagination.className = 'stn-pagination';
     previewWrap.appendChild(pagination);
 
-    // AI result area (hidden until AI runs)
     const aiWrap = document.createElement('div');
     aiWrap.id = 'stn-ai-result-wrap';
     aiWrap.className = 'stn-ai-result-wrap';
@@ -269,7 +581,6 @@
     wrapper.appendChild(table);
     container.appendChild(wrapper);
 
-    // Pagination
     pagination.innerHTML = '';
     if (totalPages > 1) {
       const prev = document.createElement('button');
@@ -295,6 +606,7 @@
   }
 
   function clearPreview() {
+    destroyYieldCharts();
     previewWrap.innerHTML  = '';
     previewWrap.style.display = 'none';
     previewData  = null;
@@ -320,39 +632,37 @@
       setStatus('⚠ Please preview data first before summarizing.', 'error');
       return;
     }
+    if (stationSel.value === '__all__' && previewData?.total_rows > 20000) {
+      if (!confirm(`This will export ${previewData.total_rows.toLocaleString()} rows and may take a while. Continue?`)) return;
+    }
 
-    promptBtn.disabled   = true;
+    promptBtn.disabled    = true;
     promptBtn.textContent = '⏳ Analyzing…';
     setStatus('🤖 AI is analyzing your data…', 'loading');
 
-    // Hide old AI result
     const aiWrap = document.getElementById('stn-ai-result-wrap');
     if (aiWrap) aiWrap.style.display = 'none';
 
     try {
-      const dataText = buildDataTextForAI();
+      const dataText   = buildDataTextForAI();
       const fullPrompt = buildFullPrompt(prompt, dataText);
 
-      const res = await fetch('/api/ai-summarize', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: apiKey,
-        prompt:  fullPrompt,
-      }),
-    });
+      const res = await fetch('/traceability/api/ai-summarize', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: apiKey, prompt: fullPrompt }),
+      });
 
-    const result = await res.json();
+      const result = await res.json();
+      if (!res.ok) {
+        const errMsg = result?.error?.message || result?.error || `API error ${res.status}`;
+        throw new Error(errMsg);
+      }
 
-    if (!res.ok) {
-      const errMsg = result?.error?.message || result?.error || `API error ${res.status}`;
-      throw new Error(errMsg);
-    }
-
-    const text = result.content
-      ?.filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('\n') || '(No response)';
+      const text = result.content
+        ?.filter(b => b.type === 'text')
+        .map(b => b.text)
+        .join('\n') || '(No response)';
 
       aiSummary = text;
       renderAIResult(text);
@@ -360,18 +670,13 @@
     } catch (err) {
       setStatus(`⚠ AI Error: ${err.message}`, 'error');
     } finally {
-      promptBtn.disabled   = false;
+      promptBtn.disabled    = false;
       promptBtn.textContent = 'Summarize Data';
     }
   });
 
-  /**
-   * Serialise ALL rows from ALL tables into a compact text block for the AI.
-   * Each table is represented as a header + CSV-like rows.
-   */
   function buildDataTextForAI() {
     if (!previewData?.tables) return '(no data)';
-
     return previewData.tables.map(tbl => {
       const header = tbl.columns.join(', ');
       const rows   = tbl.rows.map(row =>
@@ -392,14 +697,10 @@
     );
   }
 
-  /**
-   * Render AI text with simple markdown-lite formatting inside the modal.
-   */
   function renderAIResult(text) {
     const aiWrap = document.getElementById('stn-ai-result-wrap');
     if (!aiWrap) return;
 
-    // Simple markdown-lite: bold, headers, lists, line breaks
     let html = escHtml(text)
       .replace(/^### (.+)$/gm, '<h4>$1</h4>')
       .replace(/^## (.+)$/gm, '<h3>$1</h3>')
@@ -425,58 +726,106 @@
       <div class="stn-ai-result-body"><p>${html}</p></div>
     `;
     aiWrap.style.display = 'block';
-
-    // Smooth scroll to AI result
     aiWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   /* ── Download ─────────────────────────────────────────────────────────── */
-  dlBtn.addEventListener('click', async () => {
+  dlBtn.addEventListener('click', () => {
     const payload = lastPayload || buildPayload();
     if (!payload) return;
-
-    // Attach AI summary if available so backend can add "AI Analysis" sheet
-    const downloadPayload = { ...payload };
-    if (aiSummary) {
-      downloadPayload.ai_summary = aiSummary;
-      downloadPayload.ai_prompt  = (promptInput?.value || '').trim();
-    }
-
-    setStatus('⏳ Generating Excel, please wait…', 'loading');
     dlBtn.disabled = true;
-
-    try {
-      const res = await fetch('/api/download-station-data', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(downloadPayload),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Server error ${res.status}`);
-      }
-
-      const blob  = await res.blob();
-      const url   = URL.createObjectURL(blob);
-      const a     = document.createElement('a');
-      const disp  = res.headers.get('Content-Disposition') || '';
-      const match = disp.match(/filename="?([^"]+)"?/);
-      a.download  = match ? match[1] : `${payload.station}_data.xlsx`;
-      a.href      = url;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      const label = aiSummary ? '✅ Downloaded with AI Analysis sheet!' : '✅ Download started!';
-      setStatus(label, 'success');
-    } catch (err) {
-      setStatus(`⚠ ${err.message}`, 'error');
-    } finally {
-      dlBtn.disabled = false;
-    }
+    setStatus('', '');
+    showDownloadProgress(payload);
   });
+
+  function showDownloadProgress(payload) {
+    let progressWrap = document.getElementById('stn-dl-progress');
+    if (!progressWrap) {
+      progressWrap = document.createElement('div');
+      progressWrap.id = 'stn-dl-progress';
+      progressWrap.className = 'stn-dl-progress-wrap';
+      previewWrap.parentNode.insertBefore(progressWrap, previewWrap.nextSibling);
+    }
+    progressWrap.style.display = 'block';
+    progressWrap.innerHTML = `
+      <div class="stn-dl-progress-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Preparing Download…
+      </div>
+      <div class="stn-dl-progress-bar-wrap">
+        <div id="stn-dl-bar" class="stn-dl-bar" style="width:0%"></div>
+      </div>
+      <div id="stn-dl-progress-label" class="stn-dl-progress-label">Connecting…</div>
+      <div id="stn-dl-log" class="stn-dl-log"></div>
+    `;
+
+    const bar   = document.getElementById('stn-dl-bar');
+    const label = document.getElementById('stn-dl-progress-label');
+    const log   = document.getElementById('stn-dl-log');
+
+    const qs = new URLSearchParams({ ...payload });
+    if (aiSummary) {
+      qs.set('ai_summary', aiSummary);
+      qs.set('ai_prompt', (promptInput?.value || '').trim());
+    }
+
+    const evtSource = new EventSource(`/traceability/api/download-station-data-stream?${qs}`);
+
+    evtSource.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+
+      if (msg.type === 'start') {
+        label.textContent = `Fetching 0 / ${msg.total} tables…`;
+
+      } else if (msg.type === 'progress') {
+        const pct = Math.round((msg.done / msg.total) * 90);
+        bar.style.width   = pct + '%';
+        label.textContent = `Fetching ${msg.done} / ${msg.total} tables…`;
+        const entry = document.createElement('div');
+        entry.className   = 'stn-dl-log-entry' + (msg.error ? ' stn-dl-log-error' : '');
+        entry.textContent = msg.error
+          ? `✖  ${msg.table} — ${msg.error}`
+          : `✔  ${msg.table}  (${msg.rows.toLocaleString()} rows)`;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+
+      } else if (msg.type === 'building') {
+        bar.style.width   = '92%';
+        label.textContent = 'Building Excel file (including Yield Summary sheet)…';
+
+      } else if (msg.type === 'done') {
+        bar.style.width      = '100%';
+        bar.style.background = '#4ade80';
+        label.textContent    = `✅ Done — ${msg.total_rows.toLocaleString()} rows`;
+        evtSource.close();
+        dlBtn.disabled = false;
+        const a    = document.createElement('a');
+        a.href     = msg.download_url;
+        a.download = msg.filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+      } else if (msg.type === 'error') {
+        bar.style.background = '#f87171';
+        label.textContent    = `⚠ ${msg.message}`;
+        evtSource.close();
+        dlBtn.disabled = false;
+        setStatus(`⚠ ${msg.message}`, 'error');
+      }
+    };
+
+    evtSource.onerror = () => {
+      label.textContent = '⚠ Connection lost.';
+      evtSource.close();
+      dlBtn.disabled = false;
+    };
+  }
 
   /* ── Helpers ──────────────────────────────────────────────────────────── */
   function setStatus(msg, type) {

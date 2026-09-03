@@ -20,7 +20,7 @@ def _to_csv(rows: list[dict]) -> str:
     return output.getvalue()
 
 
-@download_bp.route('/download-records', methods=['GET'])
+@download_bp.route('/traceability/api/download-records', methods=['GET'])
 def download_records():
     """
     Query params:

@@ -35,8 +35,8 @@
             </div>
 
             <div class="field-group">
-                <label for="login-group">Group / Username</label>
-                <input type="text" id="login-group" placeholder="e.g. TE-GROUP1" autocomplete="off">
+                <label for="login-group">Enter employee num</label>
+                <input type="text" id="login-group" placeholder="e.g. KE0001" autocomplete="off">
             </div>
             <div class="field-group">
                 <label for="login-badge">Badge / Password</label>
@@ -71,10 +71,10 @@
             status.textContent = '';
 
             try {
-                const res  = await fetch('/api/login', {
+                const res  = await fetch('/traceability/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ group, password })
+                    body: JSON.stringify({ employee_num: group, password })
                 });
                 const data = await res.json();
                 if (data.success) {

@@ -112,7 +112,7 @@
         dlBtn.textContent = 'Downloading…';
 
         try {
-            const res = await fetch(`/api/download-records?${params}`);
+            const res = await fetch(`/traceability/api/download-records?${params}`);
 
             if (!res.ok) {
                 const text = await res.text();

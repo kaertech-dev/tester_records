@@ -1,0 +1,16 @@
+services:
+  traceability:
+    build: .
+    image: traceability
+    container_name: traceability_monitoring
+    ports:
+      - "5003:5003"
+    restart: always
+    environment:
+      - FLASK_ENV=production
+    networks:
+      - manufacturing_network
+
+networks:
+  manufacturing_network:
+    external: true

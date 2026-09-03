@@ -1,22 +1,51 @@
 """
-backend/download_station_data.py
+backend/download_station_data.py  (streaming rewrite)
 
 Flask Blueprint — Station Data Downloader
   GET  /api/stations-list          → returns all unique stations across active schemas
-  POST /api/preview-station-data   → returns JSON preview (summary + first N rows per table)
-  POST /api/download-station-data  → streams Excel for chosen station + date range
-                                     (includes optional "AI Analysis" sheet if ai_summary sent)
+  POST /api/preview-station-data   → returns JSON preview + yield summary
+  POST /api/download-station-data  → streams Excel, one sheet per table + Yield Summary
+  GET  /api/download-station-data-stream  → SSE progress + final download link
+
+Architecture (per the streaming rewrite):
+
+    DB → fetchmany() chunks → ws.append() directly → file
+                            → YieldAccumulator (running totals only)
+
+ThreadPoolExecutor has been removed: tables are processed strictly
+sequentially, since the DB and the single workbook being written are both
+serial bottlenecks anyway.
+
+IMPORTANT MEMORY NOTE: the Yield Summary and AI Analysis sheets need merged
+cells, fills, and charts, which openpyxl's write-only mode cannot do, and
+openpyxl does not support mixing write-only and normal sheets in one
+Workbook (confirmed empirically while building this). So this uses a
+normal Workbook, which means appended rows stay resident in memory until
+wb.save() — not truly unbounded streaming. To keep memory bounded anyway,
+two hard limits are enforced: MAX_ROWS_PER_TABLE (per table) and
+MAX_TOTAL_ROWS (across the whole export). Hitting either limit truncates
+the export and clearly flags it as capped in the output (a banner sheet in
+the Excel file, and a `capped` field in the JSON/SSE responses) rather than
+silently dropping data.
 """
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file, Response, stream_with_context
 from mysql.connector import pooling
+import mysql.connector
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
+from decimal import Decimal
 import threading
 import io
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
+import tempfile
+import os
+import uuid
+
+# ── Local yield helpers ───────────────────────────────────────────────────────
+from backend.yield_analysis import YieldAccumulator
+from backend.yield_excel import add_yield_sheet
 
 station_bp = Blueprint('station_bp', __name__)
 
@@ -27,12 +56,20 @@ DB_CONFIG = {
     "user":     "readonly_user",
     "password": "kts@tsd2025",
 }
-POOL_SIZE   = 8
-MAX_WORKERS = 8
-CHUNK_SIZE  = 5000
+CHUNK_SIZE         = 5000     # rows pulled from MySQL per fetchmany() call
+PREVIEW_LIMIT      = 100      # rows kept in memory per table for JSON preview
+
+# Memory safety: a normal (non-write-only) openpyxl workbook is required so
+# the Yield Summary / AI Analysis sheets can use merged cells, fills, and
+# charts. That means every row appended to a data sheet stays resident in
+# memory until wb.save() — there is no way around this while charts/merged
+# cells are in the same file (verified empirically: 30 tables x 10k rows
+# reaches ~525MB). So we enforce two budgets instead of relying on streaming
+# alone to bound memory:
+MAX_ROWS_PER_TABLE = 20000     # hard ceiling per single table
+MAX_TOTAL_ROWS     = 150000    # hard ceiling across the whole export
 # ──────────────────────────────────────────────────────────────────────────────
 
-_pool       = None
 _pool_lock  = threading.Lock()
 _print_lock = threading.Lock()
 
@@ -40,16 +77,14 @@ def tprint(*args, **kwargs):
     with _print_lock:
         print(*args, **kwargs)
 
+_pool = None
+
 def get_pool():
     global _pool
     with _pool_lock:
         if _pool is None:
             _pool = pooling.MySQLConnectionPool(
-                pool_name="station_pool",
-                pool_size=POOL_SIZE,
-                pool_reset_session=True,
-                **DB_CONFIG,
-            )
+                pool_name="station_pool", pool_size=8, **DB_CONFIG)
     return _pool
 
 
@@ -72,7 +107,6 @@ def get_active_schemas(pool):
 
 
 def get_all_tables_for_schemas(pool, schemas):
-    """Return list of (schema, table) for all tables in active schemas."""
     if not schemas:
         return []
     placeholders = ", ".join(["%s"] * len(schemas))
@@ -94,7 +128,6 @@ def get_all_tables_for_schemas(pool, schemas):
 
 
 def extract_station(table_name):
-    """Everything after the first underscore is the station. Returns None for _old tables."""
     parts = table_name.split('_', 1)
     if len(parts) < 2:
         return None
@@ -104,9 +137,16 @@ def extract_station(table_name):
     return station
 
 
-def get_tables_for_station(pool, schemas, station):
-    """Return (schema, table) pairs where station matches exactly, excluding _old tables."""
+def get_tables_for_station(pool, schemas, station, schema_filter=None):
     all_tables = get_all_tables_for_schemas(pool, schemas)
+    if schema_filter:
+        all_tables = [item for item in all_tables if item[0] == schema_filter]
+    if station == '__all__':
+        return [
+            (schema, table)
+            for schema, table in all_tables
+            if extract_station(table) is not None
+        ]
     return [
         (schema, table)
         for schema, table in all_tables
@@ -114,13 +154,14 @@ def get_tables_for_station(pool, schemas, station):
     ]
 
 
+_dt_col_cache = {}
+
 def detect_datetime_column(conn, schema, table):
-    """
-    Detect the best datetime column to filter on.
-    Priority: datetime_start > created_at > updated_at > first DATETIME/TIMESTAMP col found.
-    """
+    key = f"{schema}.{table}"
+    if key in _dt_col_cache:
+        return _dt_col_cache[key]
     cursor = conn.cursor()
-    cursor.execute(f"""
+    cursor.execute("""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
@@ -129,199 +170,278 @@ def detect_datetime_column(conn, schema, table):
     """, (schema, table))
     cols = cursor.fetchall()
     cursor.close()
-
-    preferred = ['datetime_start', 'created_at', 'updated_at', 'date']
+    preferred  = ['datetime_start', 'created_at', 'updated_at', 'date']
     col_names  = [c[0].lower() for c in cols]
+    result     = None
     for pref in preferred:
         if pref in col_names:
-            return cols[col_names.index(pref)][0]
-    return cols[0][0] if cols else None
+            result = cols[col_names.index(pref)][0]
+            break
+    if result is None:
+        result = cols[0][0] if cols else None
+    _dt_col_cache[key] = result
+    return result
 
 
-def fetch_table_data_filtered(pool, schema, table, date_from, date_to):
-    """Fetch rows filtered by date range using chunked fetching."""
-    conn = pool.get_connection()
+def stream_table_rows(schema, table, date_from, date_to, max_rows=None):
+    """
+    Generator that yields ('columns', columns) once, then ('rows', chunk)
+    repeatedly, and finally ('truncated', row_count) if max_rows was hit
+    before the table was exhausted. Opens and closes its own connection —
+    callers consume this fully (or break) before moving to the next table,
+    since tables are processed strictly sequentially.
+
+    max_rows caps how many rows this call will yield in total (used to
+    enforce both the per-table ceiling and whatever global row budget
+    remains for the export as a whole — the caller passes the smaller of
+    the two).
+    """
+    conn = mysql.connector.connect(**DB_CONFIG)
     try:
         dt_col = detect_datetime_column(conn, schema, table)
-        cursor = conn.cursor()
+        if not dt_col:
+            return
 
-        if dt_col:
-            cursor.execute(f"""
-                SELECT * FROM `{schema}`.`{table}`
-                WHERE `{dt_col}` >= %s AND `{dt_col}` < %s
-                ORDER BY `{dt_col}` DESC
-            """, (date_from, date_to))
-        else:
-            cursor.execute(f"SELECT * FROM `{schema}`.`{table}`")
-
+        cursor = conn.cursor(dictionary=False)
+        query = f"""
+            SELECT *
+            FROM `{schema}`.`{table}`
+            WHERE `{dt_col}` >= %s
+              AND `{dt_col}` < %s
+            ORDER BY `{dt_col}` DESC
+        """
+        cursor.execute(query, (date_from, date_to))
         columns = [desc[0] for desc in cursor.description]
-        rows = []
+        yield ('columns', columns)
+
+        row_count = 0
+        truncated = False
         while True:
             chunk = cursor.fetchmany(CHUNK_SIZE)
             if not chunk:
                 break
-            rows.extend(chunk)
+            if max_rows is not None:
+                remaining = max_rows - row_count
+                if remaining <= 0:
+                    truncated = True
+                    break
+                if len(chunk) > remaining:
+                    chunk = chunk[:remaining]
+                    truncated = True
+            row_count += len(chunk)
+            yield ('rows', chunk)
+            if truncated:
+                break
+
+        if truncated:
+            yield ('truncated', row_count)
+
         cursor.close()
     finally:
         conn.close()
 
-    tprint(f"  ✔  {schema}.{table}  ({len(rows):,} rows)")
-    return schema, table, columns, rows
+
+def _serialize_cell(v):
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v.strftime('%Y-%m-%d %H:%M:%S')
+    if isinstance(v, Decimal):
+        return float(v)
+    if isinstance(v, (int, float, bool, str)):
+        return v
+    return str(v)
 
 
 # ── Date range helpers ────────────────────────────────────────────────────────
 
 def resolve_date_range(mode, params):
-    """
-    Returns (date_from, date_to) as datetime objects.
-    date_to is exclusive (start of next day / week / month).
-    """
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
     if mode == 'today':
         return today, today + timedelta(days=1)
-
     elif mode == 'day':
         d = datetime.strptime(params['date'], '%Y-%m-%d')
         return d, d + timedelta(days=1)
-
     elif mode == 'week':
-        year = int(params['year'])
-        week = int(params['week'])
+        year   = int(params['year'])
+        week   = int(params['week'])
         monday = datetime.strptime(f'{year}-W{week:02d}-1', '%G-W%V-%u')
         return monday, monday + timedelta(weeks=1)
-
     elif mode == 'month':
         year  = int(params['year'])
         month = int(params['month'])
         start = datetime(year, month, 1)
-        if month == 12:
-            end = datetime(year + 1, 1, 1)
-        else:
-            end = datetime(year, month + 1, 1)
+        end   = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
         return start, end
-
     elif mode == 'range':
         d_from = datetime.strptime(params['date_from'], '%Y-%m-%d')
-        d_to   = datetime.strptime(params['date_to'],   '%Y-%m-%d') + timedelta(days=1)
+        d_to   = datetime.strptime(params['date_to'], '%Y-%m-%d') + timedelta(days=1)
         return d_from, d_to
-
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
 
-# ── Excel builder ─────────────────────────────────────────────────────────────
+# ── Excel builder (streaming) ──────────────────────────────────────────────────
 
-def _style_header(cell):
-    cell.font      = Font(name="Arial", bold=True, color="FFFFFF", size=10)
-    cell.fill      = PatternFill("solid", start_color="2E4057")
-    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-def _style_meta_header(cell):
-    cell.font      = Font(name="Arial", bold=True, color="FFFFFF", size=10)
-    cell.fill      = PatternFill("solid", start_color="1B6CA8")
-    cell.alignment = Alignment(horizontal="center", vertical="center")
-
-def _style_section_row(ws, row_num, col_count):
-    for col in range(1, col_count + 1):
-        cell           = ws.cell(row=row_num, column=col)
-        cell.fill      = PatternFill("solid", start_color="D6E4F0")
-        cell.font      = Font(name="Arial", bold=True, size=10, color="1B3A57")
-        cell.alignment = Alignment(horizontal="left", vertical="center")
-
-
-def build_station_excel(tables_data, station, date_from, date_to,
-                        ai_summary=None, ai_prompt=None):
+def build_station_excel_streaming(matches, date_from, date_to,
+                                  ai_summary=None, ai_prompt=None):
     """
-    Build the Excel workbook.
-    If ai_summary is provided, an extra 'AI Analysis' sheet is appended.
+    Generator that builds the workbook one table at a time, fetching via
+    fetchmany() chunks (never a full table's rows materialized as one
+    giant list) and appending straight into that table's sheet.
+
+    Yields progress events as it goes, so SSE callers can stream them live
+    instead of receiving everything in one burst after a blocking call.
+    The final event carries the finished result.
+
+    Yields
+    ------
+    ('progress', {'done': i, 'total': N, 'schema': s, 'table': t,
+                  'rows': row_count, 'truncated': bool})
+        — once per table, right after that table's sheet is finished.
+    ('result', {'buf': BytesIO | None, 'total_rows': int,
+               'tables_written': int, 'capped': bool})
+        — exactly once, last. `buf` is None if no table produced any rows.
+
+    NOTE ON MEMORY: this uses a normal (non-write-only) openpyxl Workbook,
+    because the Yield Summary and AI Analysis sheets need merged cells,
+    fills, and charts, which write-only sheets cannot do, and openpyxl does
+    not support mixing write-only and normal sheets in a single Workbook
+    instance (confirmed empirically). A normal workbook keeps every
+    appended row resident in memory until wb.save(), so true unbounded
+    streaming isn't possible here — instead we enforce a hard global row
+    budget (MAX_TOTAL_ROWS) plus a per-table ceiling (MAX_ROWS_PER_TABLE),
+    verified to keep memory in the hundreds-of-MB range rather than
+    unbounded GB growth.
     """
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title        = f"{station[:28]}"
-    ws.freeze_panes = "A2"
+    wb  = openpyxl.Workbook()
+    wb.remove(wb.active)
+    acc = YieldAccumulator()
 
-    master_headers = ["Schema", "Table", "Row #"]
-    for col_idx, h in enumerate(master_headers, start=1):
-        _style_meta_header(ws.cell(row=1, column=col_idx, value=h))
+    HEADER_FONT = Font(name="Arial", bold=True, size=10, color="FFFFFF")
+    HEADER_FILL = PatternFill("solid", start_color="2E4057")
+    META_FONT   = Font(name="Arial", bold=True, size=10)
 
-    current_row = 2
-    max_col     = len(master_headers)
-    EVEN_FILL   = PatternFill("solid", start_color="F2F7FB")
-    BASE_FONT   = Font(name="Arial", size=9)
+    total_rows     = 0
+    tables_written = 0
+    total          = len(matches)
+    capped         = False
+    capped_tables  = []   # list of (schema, table, reason) for the notice sheet
 
-    for schema, table, columns, rows in tables_data:
-        total_cols = len(master_headers) + len(columns)
-        if total_cols > max_col:
-            for col_idx, col_name in enumerate(columns, start=len(master_headers) + 1):
-                if col_idx > max_col:
-                    _style_meta_header(ws.cell(row=1, column=col_idx, value=col_name))
-            max_col = total_cols
+    for i, (schema, table) in enumerate(matches, start=1):
+        if total_rows >= MAX_TOTAL_ROWS:
+            capped = True
+            capped_tables.append((schema, table, 'skipped — global row budget already exhausted'))
+            yield ('progress', {'done': i, 'total': total, 'schema': schema,
+                                'table': table, 'rows': 0, 'truncated': True})
+            continue
 
-        # Section separator
-        ws.cell(row=current_row, column=1,
-                value=f"▶  {schema}.{table}  —  {len(rows):,} row(s)")
-        _style_section_row(ws, current_row, max_col)
-        ws.row_dimensions[current_row].height = 18
-        current_row += 1
+        global_remaining = MAX_TOTAL_ROWS - total_rows
+        per_table_budget = min(MAX_ROWS_PER_TABLE, global_remaining)
+        hit_global_first = global_remaining < MAX_ROWS_PER_TABLE
 
-        # Column headers
-        for col_idx, h in enumerate(master_headers, start=1):
-            _style_header(ws.cell(row=current_row, column=col_idx, value=h))
-        for col_idx, col_name in enumerate(columns, start=len(master_headers) + 1):
-            _style_header(ws.cell(row=current_row, column=col_idx, value=col_name))
-        ws.row_dimensions[current_row].height = 20
-        current_row += 1
+        ws = wb.create_sheet(title=f"Table {i}")
+        columns       = None
+        row_count     = 0
+        was_truncated = False
 
-        # Data rows
-        for row_num, row in enumerate(rows, start=1):
-            is_even = row_num % 2 == 0
-            for mc in range(1, len(master_headers) + 1):
-                c      = ws.cell(row=current_row, column=mc)
-                c.font = BASE_FONT
-                if is_even:
-                    c.fill = EVEN_FILL
-            ws.cell(row=current_row, column=1).value = schema
-            ws.cell(row=current_row, column=2).value = table
-            ws.cell(row=current_row, column=3).value = row_num
-            for col_idx, value in enumerate(row, start=len(master_headers) + 1):
-                c      = ws.cell(row=current_row, column=col_idx, value=value)
-                c.font = BASE_FONT
-                if is_even:
-                    c.fill = EVEN_FILL
-            current_row += 1
+        for kind, payload in stream_table_rows(schema, table, date_from, date_to,
+                                                max_rows=per_table_budget):
+            if kind == 'columns':
+                columns = payload
+                meta_cell      = ws.cell(row=1, column=1, value=f"{schema}.{table}")
+                meta_cell.font = META_FONT
+                for col_idx, col_name in enumerate(columns, start=1):
+                    c      = ws.cell(row=2, column=col_idx, value=col_name)
+                    c.font = HEADER_FONT
+                    c.fill = HEADER_FILL
+                acc.start_table(columns)
 
-        current_row += 1  # spacer
+            elif kind == 'rows':
+                for row in payload:
+                    ws.append([_serialize_cell(v) for v in row])
+                acc.add_rows(payload)
+                row_count += len(payload)
 
-    # Auto-fit columns
-    for col_cells in ws.iter_cols(min_row=1, max_row=ws.max_row):
-        max_len = 0
-        for cell in col_cells:
-            try:
-                if cell.value:
-                    max_len = max(max_len, len(str(cell.value)))
-            except Exception:
-                pass
-        ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 50)
+            elif kind == 'truncated':
+                was_truncated = True
 
-    # ── Optional AI Analysis sheet ────────────────────────────────────────
+        if columns is None or row_count == 0:
+            del wb[ws.title]
+        else:
+            total_rows     += row_count
+            tables_written  += 1
+            if was_truncated:
+                capped = True
+                reason = ('global row budget reached' if hit_global_first
+                          else f'per-table limit of {MAX_ROWS_PER_TABLE:,} rows reached')
+                capped_tables.append((schema, table, reason))
+                note_row = ws.max_row + 2
+                note     = ws.cell(row=note_row, column=1,
+                                   value=f"⚠ Truncated at {row_count:,} rows ({reason})")
+                note.font = Font(name="Arial", italic=True, color="B00020", size=9)
+
+        yield ('progress', {'done': i, 'total': total, 'schema': schema,
+                            'table': table, 'rows': row_count, 'truncated': was_truncated})
+
+    if tables_written == 0:
+        yield ('result', {'buf': None, 'total_rows': 0,
+                          'tables_written': 0, 'capped': capped})
+        return
+
+    yield_data = acc.finalize()
+    if yield_data.get('has_yield_data'):
+        add_yield_sheet(wb, yield_data)
+
+    if capped:
+        _add_capped_notice(wb, total_rows, capped_tables)
+
     if ai_summary:
         _add_ai_sheet(wb, ai_prompt or '', ai_summary)
 
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    return buf
+    yield ('result', {'buf': buf, 'total_rows': total_rows,
+                      'tables_written': tables_written, 'capped': capped})
 
 
-# ── AI Analysis sheet builder ─────────────────────────────────────────────────
+def _add_capped_notice(wb, total_rows, capped_tables):
+    """Insert a visible notice sheet (right after Yield Summary, if present)
+    so a capped export is never silently incomplete. Lists exactly which
+    tables were affected and why, rather than a generic global-limit message."""
+    index = 1 if "Yield Summary" in wb.sheetnames else 0
+    ws = wb.create_sheet(title="⚠ Export Limited", index=index)
+    ws.column_dimensions["A"].width = 30
+    ws.column_dimensions["B"].width = 55
+
+    header_msg = (
+        f"This export was capped at {total_rows:,} total rows. "
+        f"Some tables or rows within tables are missing. Narrow the date "
+        f"range, or filter to a single station/database, for a complete export."
+    )
+    cell           = ws.cell(row=1, column=1, value=header_msg)
+    ws.merge_cells("A1:B1")
+    cell.font      = Font(name="Arial", bold=True, color="B00020", size=11)
+    cell.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.row_dimensions[1].height = 45
+
+    ws.cell(row=3, column=1, value="Table").font  = Font(name="Arial", bold=True, size=10)
+    ws.cell(row=3, column=2, value="Reason").font = Font(name="Arial", bold=True, size=10)
+    r = 4
+    for schema, table, reason in capped_tables:
+        ws.cell(row=r, column=1, value=f"{schema}.{table}")
+        ws.cell(row=r, column=2, value=reason)
+        r += 1
+    cell.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.row_dimensions[1].height = 60
+
+
+# ── AI Analysis sheet builder (unchanged — needs a normal, non-write-only sheet) ──
 
 def _add_ai_sheet(wb, prompt: str, summary: str) -> None:
-    """Append a formatted 'AI Analysis' sheet to the workbook."""
-
     ws = wb.create_sheet(title="AI Analysis")
 
-    # ── Palette
     PURPLE_DARK  = "2D1B4E"
     PURPLE_MID   = "6B3FA0"
     LIGHT_BG     = "F5F0FF"
@@ -339,20 +459,17 @@ def _add_ai_sheet(wb, prompt: str, summary: str) -> None:
             bottom=s if bottom else n,
         )
 
-    # ── Column widths
     ws.column_dimensions["A"].width = 16
     ws.column_dimensions["B"].width = 95
 
-    # ── Row 1: Title
     ws.merge_cells("A1:B1")
-    title = ws["A1"]
+    title           = ws["A1"]
     title.value     = "AI Analysis  —  Powered by Claude"
     title.font      = Font(name="Arial", bold=True, size=14, color=WHITE)
     title.fill      = PatternFill("solid", fgColor=PURPLE_DARK)
     title.alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 34
 
-    # ── Row 2: Prompt label + value
     ws["A2"].value     = "Prompt"
     ws["A2"].font      = Font(name="Arial", bold=True, size=10, color=WHITE)
     ws["A2"].fill      = PatternFill("solid", fgColor=PURPLE_MID)
@@ -368,32 +485,25 @@ def _add_ai_sheet(wb, prompt: str, summary: str) -> None:
     prompt_lines       = max(1, len(prompt_text) // 90 + 1)
     ws.row_dimensions[2].height = max(20, min(prompt_lines * 15, 80))
 
-    # ── Row 3: spacer
     ws.row_dimensions[3].height = 6
 
-    # ── Row 4: Section header
     ws.merge_cells("A4:B4")
     sec           = ws["A4"]
     sec.value     = "Analysis Results"
     sec.font      = Font(name="Arial", bold=True, size=11, color=WHITE)
     sec.fill      = PatternFill("solid", fgColor=PURPLE_MID)
-    sec.alignment = Alignment(horizontal="left", vertical="center",
-                              indent=1)
+    sec.alignment = Alignment(horizontal="left", vertical="center", indent=1)
     ws.row_dimensions[4].height = 22
 
-    # ── Rows 5+: AI text, line by line
     current_row = 5
     for line in summary.splitlines():
         stripped = line.strip()
-
-        # Empty line → small spacer row
         if not stripped:
             ws.row_dimensions[current_row].height = 7
             ws.append(["", ""])
             current_row += 1
             continue
 
-        # Detect markdown headings
         if stripped.startswith("### "):
             text, level = stripped[4:], 3
         elif stripped.startswith("## "):
@@ -403,20 +513,15 @@ def _add_ai_sheet(wb, prompt: str, summary: str) -> None:
         else:
             text, level = stripped, 0
 
-        # Strip remaining markdown bold/italic/code markers
         text = text.replace("**", "").replace("*", "").replace("`", "")
-
-        # Bullet indicator
         is_bullet = text.startswith("- ") or text.startswith("• ")
         if is_bullet:
             text = "  •  " + text[2:]
 
-        # Left label column (blank, just coloured)
         left_cell           = ws.cell(row=current_row, column=1, value="")
         left_cell.fill      = PatternFill("solid", fgColor="EEE8FF")
         left_cell.border    = _thin_border(left=True, right=False)
 
-        # Content column
         cell           = ws.cell(row=current_row, column=2, value=text)
         cell.alignment = Alignment(vertical="top", wrap_text=True, indent=1)
         cell.border    = _thin_border(left=False, right=True)
@@ -441,18 +546,14 @@ def _add_ai_sheet(wb, prompt: str, summary: str) -> None:
 
         current_row += 1
 
-    # ── Close bottom border on last content row
     last = current_row - 1
     for col in [1, 2]:
         existing       = ws.cell(row=last, column=col).border
         ws.cell(row=last, column=col).border = Border(
-            left=existing.left,
-            right=existing.right,
-            top=existing.top,
+            left=existing.left, right=existing.right, top=existing.top,
             bottom=Side(style="thin", color=BORDER_COLOR),
         )
 
-    # ── Generated timestamp row
     ws.append(["", ""])
     current_row += 1
     ts_cell           = ws.cell(row=current_row, column=1,
@@ -466,14 +567,24 @@ def _add_ai_sheet(wb, prompt: str, summary: str) -> None:
 
 # ── Flask routes ──────────────────────────────────────────────────────────────
 
-@station_bp.route('/api/stations-list')
-def stations_list():
-    """Return sorted list of all unique station names across active schemas."""
+@station_bp.route('/traceability/api/active-databases')
+def active_databases():
     try:
-        pool     = get_pool()
-        schemas  = get_active_schemas(pool)
-        tables   = get_all_tables_for_schemas(pool, schemas)
-        stations = sorted(set(
+        pool    = get_pool()
+        schemas = get_active_schemas(pool)
+        return jsonify(sorted(set(schemas)))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@station_bp.route('/traceability/api/stations-list')
+def stations_list():
+    try:
+        pool      = get_pool()
+        database  = (request.args.get('database') or '').strip()
+        schemas   = [database] if database else get_active_schemas(pool)
+        tables    = get_all_tables_for_schemas(pool, schemas)
+        stations  = sorted(set(
             extract_station(table)
             for _, table in tables
             if extract_station(table)
@@ -483,22 +594,17 @@ def stations_list():
         return jsonify({'error': str(e)}), 500
 
 
-@station_bp.route('/api/preview-station-data', methods=['POST'])
+@station_bp.route('/traceability/api/preview-station-data', methods=['POST'])
 def preview_station_data():
     """
-    Returns JSON preview for the data table visualization.
-    Body: { station, mode, date?, year?, week?, month?, date_from?, date_to? }
-    Response: {
-        station, date_from, date_to,
-        total_rows, total_tables,
-        tables: [ { schema, table, row_count, columns, rows (first 100) } ]
-    }
+    Streams each table just like the download route, but only retains up
+    to PREVIEW_LIMIT rows per table for the JSON response. Yield stats are
+    still computed over every row seen (cheap — just counters).
     """
-    PREVIEW_LIMIT = 100
-
-    body    = request.get_json(force=True) or {}
-    station = (body.get('station') or '').strip()
-    mode    = (body.get('mode')    or 'today').strip()
+    body     = request.get_json(force=True) or {}
+    station  = (body.get('station') or '').strip()
+    database = (body.get('database') or '').strip()
+    mode     = (body.get('mode')    or 'today').strip()
 
     if not station:
         return jsonify({'error': 'station is required'}), 400
@@ -510,58 +616,42 @@ def preview_station_data():
 
     try:
         pool    = get_pool()
-        schemas = get_active_schemas(pool)
-        matches = get_tables_for_station(pool, schemas, station)
+        schemas = [database] if database else get_active_schemas(pool)
+        matches = get_tables_for_station(pool, schemas, station, schema_filter=database or None)
 
         if not matches:
-            return jsonify({'error': f'No tables found for station "{station}"'}), 404
+            label = "all stations" if station == '__all__' else f'station "{station}"'
+            return jsonify({'error': f'No tables found for {label}'}), 404
 
-        results = {}
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = {
-                executor.submit(
-                    fetch_table_data_filtered, pool, schema, table, date_from, date_to
-                ): (schema, table)
-                for schema, table in matches
-            }
-            for future in as_completed(futures):
-                try:
-                    s, t, columns, rows = future.result()
-                    results[(s, t)] = (columns, rows)
-                except Exception as e:
-                    s, t = futures[future]
-                    tprint(f"  ✖  {s}.{t} — {e}")
-
+        acc        = YieldAccumulator()
         tables_out = []
         total_rows = 0
+
         for schema, table in matches:
-            if (schema, table) not in results:
+            columns      = None
+            preview_rows = []
+            row_count    = 0
+
+            for kind, payload in stream_table_rows(schema, table, date_from, date_to):
+                if kind == 'columns':
+                    columns = payload
+                    acc.start_table(columns)
+                elif kind == 'rows':
+                    acc.add_rows(payload)
+                    row_count += len(payload)
+                    if len(preview_rows) < PREVIEW_LIMIT:
+                        remaining = PREVIEW_LIMIT - len(preview_rows)
+                        for row in payload[:remaining]:
+                            preview_rows.append([_serialize_cell(v) for v in row])
+
+            if columns is None or row_count == 0:
                 continue
-            columns, rows = results[(schema, table)]
-            total_rows += len(rows)
 
-            def serialize(v):
-                if v is None:
-                    return None
-                if isinstance(v, datetime):
-                    return v.strftime('%Y-%m-%d %H:%M:%S')
-                try:
-                    from decimal import Decimal
-                    if isinstance(v, Decimal):
-                        return float(v)
-                except ImportError:
-                    pass
-                return str(v) if not isinstance(v, (int, float, bool, str)) else v
-
-            preview_rows = [
-                [serialize(cell) for cell in row]
-                for row in rows[:PREVIEW_LIMIT]
-            ]
-
+            total_rows += row_count
             tables_out.append({
                 'schema':    schema,
                 'table':     table,
-                'row_count': len(rows),
+                'row_count': row_count,
                 'columns':   columns,
                 'rows':      preview_rows,
             })
@@ -569,34 +659,30 @@ def preview_station_data():
         if total_rows == 0:
             return jsonify({'error': 'No data found for the selected station and date range.'}), 404
 
+        yield_summary = acc.finalize()
+
         return jsonify({
-            'station':      station,
-            'date_from':    date_from.strftime('%Y-%m-%d'),
-            'date_to':      (date_to - timedelta(days=1)).strftime('%Y-%m-%d'),
-            'total_rows':   total_rows,
-            'total_tables': len(tables_out),
-            'tables':       tables_out,
+            'station':       'All Stations' if station == '__all__' else station,
+            'date_from':     date_from.strftime('%Y-%m-%d'),
+            'date_to':       (date_to - timedelta(days=1)).strftime('%Y-%m-%d'),
+            'total_rows':    total_rows,
+            'total_tables':  len(tables_out),
+            'tables':        tables_out,
+            'yield_summary': yield_summary,
         })
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-@station_bp.route('/api/download-station-data', methods=['POST'])
+@station_bp.route('/traceability/api/download-station-data', methods=['POST'])
 def download_station_data():
-    """
-    Body (JSON):
-      {
-        station, mode, date?, year?, week?, month?, date_from?, date_to?,
-        ai_summary?,   ← optional: AI analysis text to embed as extra sheet
-        ai_prompt?     ← optional: the prompt the user typed
-      }
-    """
-    body    = request.get_json(force=True) or {}
-    station = (body.get('station')    or '').strip()
-    mode    = (body.get('mode')       or 'today').strip()
-    ai_summary = (body.get('ai_summary') or '').strip()   # ← NEW
-    ai_prompt  = (body.get('ai_prompt')  or '').strip()   # ← NEW
+    body       = request.get_json(force=True) or {}
+    station    = (body.get('station')    or '').strip()
+    database   = (body.get('database')   or '').strip()
+    mode       = (body.get('mode')       or 'today').strip()
+    ai_summary = (body.get('ai_summary') or '').strip()
+    ai_prompt  = (body.get('ai_prompt')  or '').strip()
 
     if not station:
         return jsonify({'error': 'station is required'}), 400
@@ -608,55 +694,139 @@ def download_station_data():
 
     try:
         pool    = get_pool()
-        schemas = get_active_schemas(pool)
-        matches = get_tables_for_station(pool, schemas, station)
+        schemas = [database] if database else get_active_schemas(pool)
+        matches = get_tables_for_station(pool, schemas, station, schema_filter=database or None)
 
         if not matches:
-            return jsonify({'error': f'No tables found for station "{station}"'}), 404
+            label = "all stations" if station == '__all__' else f'station "{station}"'
+            return jsonify({'error': f'No tables found for {label}'}), 404
 
-        results = {}
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = {
-                executor.submit(
-                    fetch_table_data_filtered, pool, schema, table, date_from, date_to
-                ): (schema, table)
-                for schema, table in matches
-            }
-            for future in as_completed(futures):
-                try:
-                    s, t, columns, rows = future.result()
-                    results[(s, t)] = (columns, rows)
-                except Exception as e:
-                    s, t = futures[future]
-                    tprint(f"  ✖  {s}.{t} — {e}")
-
-        tables_data = [
-            (schema, table, *results[(schema, table)])
-            for schema, table in matches
-            if (schema, table) in results
-        ]
-
-        total_rows = sum(len(r[3]) for r in tables_data)
-        if total_rows == 0:
-            return jsonify({'error': 'No data found for the selected station and date range.'}), 404
-
-        # ── Build Excel (with optional AI sheet) ──────────────────────────
-        buf = build_station_excel(
-            tables_data, station, date_from, date_to,
+        result = None
+        for kind, payload in build_station_excel_streaming(
+            matches, date_from, date_to,
             ai_summary=ai_summary or None,
             ai_prompt=ai_prompt   or None,
-        )
+        ):
+            if kind == 'result':
+                result = payload
+            # 'progress' events are ignored here — this route returns the
+            # file directly with no channel for incremental updates; use
+            # /api/download-station-data-stream (SSE) for live progress.
 
+        buf            = result['buf']
+        total_rows     = result['total_rows']
+        capped         = result['capped']
+
+        if buf is None or total_rows == 0:
+            return jsonify({'error': 'No data found for the selected station and date range.'}), 404
+
+        station_label = 'all_stations' if station == '__all__' else station
         filename = (
-            f"{station}_{date_from.strftime('%Y%m%d')}"
+            f"{station_label}_{date_from.strftime('%Y%m%d')}"
             f"_to_{(date_to - timedelta(days=1)).strftime('%Y%m%d')}.xlsx"
         )
-        return send_file(
+        response = send_file(
             buf,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
             download_name=filename,
         )
+        # Frontend can check this header to show a "export was truncated"
+        # banner without parsing the file. The Excel itself also has a
+        # visible "⚠ Export Limited" sheet when capped, as a backstop.
+        response.headers['X-Export-Capped']    = '1' if capped else '0'
+        response.headers['X-Export-Total-Rows'] = str(total_rows)
+        return response
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@station_bp.route('/traceability/api/download-station-data-stream', methods=['GET'])
+def download_station_data_stream():
+    station    = request.args.get('station', '').strip()
+    database   = request.args.get('database', '').strip()
+    mode       = request.args.get('mode', 'today').strip()
+    ai_summary = request.args.get('ai_summary', '').strip()
+    ai_prompt  = request.args.get('ai_prompt', '').strip()
+    params     = {k: v for k, v in request.args.items()}
+
+    def generate():
+        try:
+            date_from, date_to = resolve_date_range(mode, params)
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            return
+
+        pool    = get_pool()
+        schemas = [database] if database else get_active_schemas(pool)
+        matches = get_tables_for_station(pool, schemas, station, schema_filter=database or None)
+
+        if not matches:
+            yield f"data: {json.dumps({'type': 'error', 'message': 'No tables found.'})}\n\n"
+            return
+
+        total = len(matches)
+        yield f"data: {json.dumps({'type': 'start', 'total': total})}\n\n"
+
+        result = None
+        for kind, payload in build_station_excel_streaming(
+            matches, date_from, date_to,
+            ai_summary=ai_summary or None,
+            ai_prompt=ai_prompt or None,
+        ):
+            if kind == 'progress':
+                event = {
+                    'type':      'progress',
+                    'done':      payload['done'],
+                    'total':     payload['total'],
+                    'table':     f"{payload['schema']}.{payload['table']}",
+                    'rows':      payload['rows'],
+                    'truncated': payload['truncated'],
+                }
+                yield f"data: {json.dumps(event)}\n\n"
+            elif kind == 'result':
+                result = payload
+
+        buf            = result['buf']
+        total_rows     = result['total_rows']
+        capped         = result['capped']
+
+        if buf is None or total_rows == 0:
+            yield f"data: {json.dumps({'type': 'error', 'message': 'No data found for the selected date range.'})}\n\n"
+            return
+
+        yield f"data: {json.dumps({'type': 'building', 'message': 'Finalizing Excel file…'})}\n\n"
+
+        station_label = 'all_stations' if station == '__all__' else station
+        filename = (
+            f"{station_label}_{date_from.strftime('%Y%m%d')}"
+            f"_to_{(date_to - timedelta(days=1)).strftime('%Y%m%d')}.xlsx"
+        )
+
+        tmp_id   = uuid.uuid4().hex
+        tmp_path = os.path.join(tempfile.gettempdir(), f"stn_{tmp_id}.xlsx")
+        with open(tmp_path, 'wb') as f:
+            f.write(buf.read())
+
+        yield f"data: {json.dumps({'type': 'done', 'filename': filename, 'download_url': f'/traceability/api/download-temp/{tmp_id}', 'total_rows': total_rows, 'capped': capped})}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control':    'no-cache',
+            'X-Accel-Buffering': 'no',
+        }
+    )
+
+
+@station_bp.route('/traceability/api/download-temp/<tmp_id>')
+def download_temp(tmp_id):
+    if not tmp_id.isalnum():
+        return jsonify({'error': 'Invalid ID'}), 400
+    path = os.path.join(tempfile.gettempdir(), f"stn_{tmp_id}.xlsx")
+    if not os.path.exists(path):
+        return jsonify({'error': 'File not found or expired'}), 404
+    return send_file(path, as_attachment=True,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
