@@ -1,0 +1,136 @@
+
+<style>
+.metric-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 1rem; text-align: center; }
+.metric-label { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 4px; }
+.metric-value { font-size: 26px; font-weight: 500; margin: 0; }
+.section-title { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); margin: 1.5rem 0 0.5rem; text-transform: uppercase; letter-spacing: 0.04em; }
+</style>
+
+<h2 class="sr-only">VPro2 Nordic assembly yield dashboard for March 2026</h2>
+
+<div style="padding: 1rem 0 0;">
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1rem;">
+    <div class="metric-card">
+      <p class="metric-label">Overall yield</p>
+      <p class="metric-value" style="color: var(--color-text-success);">99.47%</p>
+    </div>
+    <div class="metric-card">
+      <p class="metric-label">Total tested</p>
+      <p class="metric-value">199,674</p>
+    </div>
+    <div class="metric-card">
+      <p class="metric-label">Pass</p>
+      <p class="metric-value" style="color: var(--color-text-success);">198,608</p>
+    </div>
+    <div class="metric-card">
+      <p class="metric-label">Fail</p>
+      <p class="metric-value" style="color: var(--color-text-danger);">1,066</p>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 1rem;">
+    <div class="metric-card">
+      <p class="metric-label">Shift A yield</p>
+      <p class="metric-value">99.35%</p>
+    </div>
+    <div class="metric-card">
+      <p class="metric-label">Shift B yield</p>
+      <p class="metric-value">99.67%</p>
+    </div>
+  </div>
+
+  <p class="section-title">Daily yield — March 2026</p>
+  <div style="position: relative; width: 100%; height: 200px;">
+    <canvas id="dailyChart" role="img" aria-label="Line chart showing daily yield percentages in March 2026, ranging from about 98.2% to 99.99%">Daily yield varied between 98.17% and 99.99% throughout March 2026.</canvas>
+  </div>
+
+  <p class="section-title">Top fail reasons</p>
+  <div style="position: relative; width: 100%; height: 220px;">
+    <canvas id="failChart" role="img" aria-label="Horizontal bar chart of top fail reasons. Stain (90), bubbles (56), cut wire (57), excess loctite (21), foreign material (19).">Top fail reasons: stain 90, cut wire 57, bubbles 56, excess loctite 21, foreign material 19.</canvas>
+  </div>
+
+  <p class="section-title">Yield by PO number</p>
+  <div style="position: relative; width: 100%; height: 200px;">
+    <canvas id="poChart" role="img" aria-label="Bar chart of yield by purchase order number">Yield by PO: 250147A 95.83%, 250203 99.30%, 250231 99.15%, 250266 98.78%, 250270A 100%, 260008A 99.97%.</canvas>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const textColor = getComputedStyle(document.documentElement).getPropertyValue('--color-text-secondary').trim() || '#888';
+const gridColor = 'rgba(128,128,128,0.15)';
+
+const dailyDates = ['Mar 2','Mar 3','Mar 4','Mar 5','Mar 6','Mar 9','Mar 10','Mar 11','Mar 12','Mar 13','Mar 16','Mar 17','Mar 18','Mar 19','Mar 23','Mar 24','Mar 25','Mar 26','Mar 27','Mar 28','Mar 29','Mar 30','Mar 31'];
+const dailyYield = [98.27,98.62,98.17,99.77,98.73,98.17,99.09,99.12,99.22,99.44,98.84,98.92,99.37,99.11,99.23,99.38,99.66,99.90,99.93,99.80,99.97,99.99,99.98];
+
+new Chart(document.getElementById('dailyChart'), {
+  type: 'line',
+  data: {
+    labels: dailyDates,
+    datasets: [{
+      label: 'Daily yield %',
+      data: dailyYield,
+      borderColor: '#1D9E75',
+      backgroundColor: 'rgba(29,158,117,0.08)',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 3,
+      pointBackgroundColor: '#1D9E75',
+      borderDash: []
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: textColor, font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 12 }, grid: { color: gridColor } },
+      y: { min: 97.5, max: 100.1, ticks: { color: textColor, font: { size: 11 }, callback: v => v.toFixed(1)+'%' }, grid: { color: gridColor } }
+    }
+  }
+});
+
+new Chart(document.getElementById('failChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Stain','Cut wire','Bubbles','Excess loctite','Foreign material','Dent o-ring','Yellow light','Stain plastic','Missing light guide'],
+    datasets: [{
+      label: 'Fail count',
+      data: [90,57,56,21,19,16,13,10,9],
+      backgroundColor: '#E24B4A',
+      borderRadius: 3,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: textColor, font: { size: 11 } }, grid: { color: gridColor } },
+      y: { ticks: { color: textColor, font: { size: 11 } }, grid: { display: false } }
+    }
+  }
+});
+
+new Chart(document.getElementById('poChart'), {
+  type: 'bar',
+  data: {
+    labels: ['250147A','250203','250231','250266','250270A','260008A'],
+    datasets: [{
+      label: 'Yield %',
+      data: [95.83,99.30,99.15,98.78,100.00,99.97],
+      backgroundColor: (ctx) => ctx.raw < 98 ? '#E24B4A' : ctx.raw < 99 ? '#EF9F27' : '#1D9E75',
+      borderRadius: 3,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: textColor, font: { size: 12 }, autoSkip: false, maxRotation: 0 }, grid: { display: false } },
+      y: { min: 94, max: 100.5, ticks: { color: textColor, font: { size: 11 }, callback: v => v.toFixed(1)+'%' }, grid: { color: gridColor } }
+    }
+  }
+});
+</script>
