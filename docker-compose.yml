@@ -6,8 +6,6 @@ services:
     ports:
       - "5003:5003"
     restart: always
-    env_file:
-      - .env
     environment:
       - FLASK_ENV=production
     networks:
